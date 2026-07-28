@@ -64,6 +64,9 @@ def _fetch_batch(points, start, end):
             raise QuotaExceeded(r.text[:200])
         # minutely rate limit needs a real pause, not exponential-from-1s
         time.sleep(70 if r.status_code == 429 else 2**attempt)
+    if r.status_code == 429:
+        # hourly/other quota that outlasted every retry — same remedy as daily
+        raise QuotaExceeded(r.text[:200])
     r.raise_for_status()
 
 
