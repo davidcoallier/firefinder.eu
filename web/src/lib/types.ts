@@ -33,6 +33,8 @@ export interface SegmentProperties {
   voltage_kv: number | null;
   operator: string | null;
   length_m: number | null;
+  /** Nearest town, for human-readable labelling. */
+  locality: string | null;
   drivers: Drivers | null;
 }
 

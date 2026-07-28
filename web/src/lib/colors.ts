@@ -9,30 +9,65 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 /**
- * Fire risk ramp: transparent -> amber -> deep red.
- * sqrt scaling lifts the low-probability end so sparse ignition
- * probabilities are still visible.
+ * Fire risk ramp for a LIGHT basemap: amber -> red-orange -> dark crimson.
+ * The visible end starts at amber (pale yellow vanishes on white) and the
+ * severe end goes dark so it still reads against light terrain. sqrt scaling
+ * lifts the low-probability end so sparse ignition probabilities are visible.
  */
 export function riskColor(
   p: number,
   opacity = 1
 ): [number, number, number, number] {
   const t = Math.sqrt(clamp01(p));
-  // amber (255,179,0) -> red (255,72,20) -> crimson (220,20,40)
+  // amber (245,158,11) -> red-orange (220,70,25) -> dark crimson (140,15,35)
   let r: number, g: number, b: number;
   if (t < 0.5) {
     const u = t / 0.5;
-    r = 255;
-    g = lerp(179, 72, u);
-    b = lerp(0, 20, u);
+    r = lerp(245, 220, u);
+    g = lerp(158, 70, u);
+    b = lerp(11, 25, u);
   } else {
     const u = (t - 0.5) / 0.5;
-    r = lerp(255, 225, u);
-    g = lerp(72, 24, u);
-    b = lerp(20, 46, u);
+    r = lerp(220, 140, u);
+    g = lerp(70, 15, u);
+    b = lerp(25, 35, u);
   }
-  const a = (30 + 195 * t) * clamp01(opacity);
+  const a = (55 + 185 * t) * clamp01(opacity);
   return [Math.round(r), Math.round(g), Math.round(b), Math.round(a)];
+}
+
+/** Corridors below this risk render as neutral context, not part of the ramp. */
+export const CORRIDOR_RISK_FLOOR = 0.35;
+
+/**
+ * Corridor line color: below the floor, a thin neutral gray so low-risk
+ * lines read as context; above it, a colorblind-safer amber-yellow ->
+ * orange -> crimson ramp.
+ */
+export function corridorColor(risk: number): [number, number, number, number] {
+  if (risk < CORRIDOR_RISK_FLOOR) return [120, 125, 135, 90];
+  const t = (clamp01(risk) - CORRIDOR_RISK_FLOOR) / (1 - CORRIDOR_RISK_FLOOR);
+  // amber-yellow (217,160,0) -> orange (234,88,12) -> crimson (153,27,27)
+  let r: number, g: number, b: number;
+  if (t < 0.5) {
+    const u = t / 0.5;
+    r = lerp(217, 234, u);
+    g = lerp(160, 88, u);
+    b = lerp(0, 12, u);
+  } else {
+    const u = (t - 0.5) / 0.5;
+    r = lerp(234, 153, u);
+    g = lerp(88, 27, u);
+    b = lerp(12, 27, u);
+  }
+  return [Math.round(r), Math.round(g), Math.round(b), 235];
+}
+
+/** Corridor line width in px: low-risk lines stay thin, top corridors are clearly thickest. */
+export function corridorWidth(risk: number): number {
+  if (risk < CORRIDOR_RISK_FLOOR) return 1.2;
+  const t = (clamp01(risk) - CORRIDOR_RISK_FLOOR) / (1 - CORRIDOR_RISK_FLOOR);
+  return 2 + t * 4.5;
 }
 
 export function riskColorCss(p: number): string {
@@ -48,7 +83,8 @@ export function riskGradientCss(): string {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
-export const ACCENT_CYAN: [number, number, number, number] = [64, 224, 255, 255];
+/** Map selection highlight: deep blue — distinct from the warm risk ramp and legible on a light basemap. */
+export const ACCENT_SELECT: [number, number, number, number] = [37, 99, 235, 255];
 
 /** Walk arbitrarily nested GeoJSON coordinates and accumulate a lon/lat bbox. */
 export function geometryBounds(
@@ -91,9 +127,10 @@ export function formatLength(m: number | null): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
+/** Tier badges: dark text on soft tinted chips so they stay readable on light surfaces. */
 export function riskTier(risk: number): { label: string; className: string } {
-  if (risk >= 0.7) return { label: "Severe", className: "bg-red-500/20 text-red-300 border-red-500/40" };
-  if (risk >= 0.4) return { label: "High", className: "bg-orange-500/20 text-orange-300 border-orange-500/40" };
-  if (risk >= 0.15) return { label: "Elevated", className: "bg-amber-500/20 text-amber-300 border-amber-500/40" };
-  return { label: "Moderate", className: "bg-zinc-500/20 text-zinc-300 border-zinc-500/40" };
+  if (risk >= 0.7) return { label: "Severe", className: "bg-red-100 text-red-900 border-red-300" };
+  if (risk >= 0.4) return { label: "High", className: "bg-orange-100 text-orange-900 border-orange-300" };
+  if (risk >= 0.15) return { label: "Elevated", className: "bg-amber-100 text-amber-900 border-amber-300" };
+  return { label: "Moderate", className: "bg-slate-100 text-slate-700 border-slate-300" };
 }

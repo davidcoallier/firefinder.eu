@@ -13,10 +13,19 @@ import type {
   SegmentFeature,
   Selection,
 } from "@/lib/types";
-import { ACCENT_CYAN, formatPct, riskColor } from "@/lib/colors";
+import {
+  ACCENT_SELECT,
+  corridorColor,
+  corridorWidth,
+  formatPct,
+  riskColor,
+  riskTier,
+} from "@/lib/colors";
 
+// Light, terrain-tinted basemap with town/road labels — keeps geographic
+// context visible at every zoom level.
 const BASEMAP_STYLE =
-  "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+  "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
 
 export type MapFocus = {
   bounds: [[number, number], [number, number]];
@@ -44,20 +53,36 @@ function isSegmentFeature(obj: unknown): obj is SegmentFeature {
   return !!f && f.type === "Feature" && f.properties != null && "risk" in f.properties;
 }
 
-function getTooltip(info: PickingInfo): { text: string } | null {
+// Light tooltip card (deck.gl's default is dark).
+const TOOLTIP_STYLE: Partial<CSSStyleDeclaration> = {
+  background: "#ffffff",
+  color: "#1e293b",
+  border: "1px solid #e2e8f0",
+  borderRadius: "8px",
+  boxShadow: "0 2px 10px rgba(15, 23, 42, 0.12)",
+  fontSize: "13px",
+  padding: "6px 10px",
+};
+
+function getTooltip(
+  info: PickingInfo
+): { text: string; style: Partial<CSSStyleDeclaration> } | null {
   const obj = info.object as unknown;
   if (!obj) return null;
   if (isSegmentFeature(obj)) {
     const p = obj.properties;
+    const where = p.locality ? `Near ${p.locality}` : `Corridor #${p.rank}`;
     return {
-      text: `Corridor #${p.rank} — risk ${formatPct(p.risk)}${
-        p.voltage_kv != null ? ` · ${p.voltage_kv} kV` : ""
-      }`,
+      text: `${where} — ${riskTier(p.risk).label} risk (${formatPct(p.risk)})`,
+      style: TOOLTIP_STYLE,
     };
   }
   const cell = obj as Cell;
   if (typeof cell.p === "number") {
-    return { text: `Ignition probability ${formatPct(cell.p)}` };
+    return {
+      text: `Ignition probability ${formatPct(cell.p)}`,
+      style: TOOLTIP_STYLE,
+    };
   }
   return null;
 }
@@ -138,8 +163,8 @@ export default function MapView({
           data: fires as unknown as GeoJSON.FeatureCollection,
           stroked: true,
           filled: true,
-          getFillColor: [255, 70, 40, 14],
-          getLineColor: [190, 60, 50, 130],
+          getFillColor: [200, 55, 40, 22],
+          getLineColor: [170, 45, 40, 150],
           lineWidthMinPixels: 1,
           pickable: false,
         })
@@ -157,7 +182,7 @@ export default function MapView({
           stroked: false,
           getFillColor: (d) =>
             d.h3 === selectedCellId
-              ? ACCENT_CYAN
+              ? ACCENT_SELECT
               : riskColor(d.p, cellOpacity),
           pickable: true,
           onClick: (info) => {
@@ -181,16 +206,17 @@ export default function MapView({
           filled: false,
           getLineColor: (f) => {
             const props = (f as unknown as SegmentFeature).properties;
-            if (props.id === selectedSegmentId) return ACCENT_CYAN;
-            const [r, g, b] = riskColor(props.risk, 1);
-            return [r, g, b, 235];
+            if (props.id === selectedSegmentId) return ACCENT_SELECT;
+            return corridorColor(props.risk);
           },
           getLineWidth: (f) => {
             const props = (f as unknown as SegmentFeature).properties;
-            return 1.5 + props.risk * 5;
+            if (props.id === selectedSegmentId)
+              return Math.max(3, corridorWidth(props.risk));
+            return corridorWidth(props.risk);
           },
           lineWidthUnits: "pixels",
-          lineWidthMinPixels: 1.5,
+          lineWidthMinPixels: 1.2,
           pickable: true,
           onClick: (info) => {
             const feature = info.object as unknown as SegmentFeature | undefined;

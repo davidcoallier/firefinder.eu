@@ -67,13 +67,15 @@ def load_static(region: str):
         )
         cur.execute("delete from line_segments where region_id = %s", (reg.id,))
         cur.executemany(
-            """insert into line_segments (region_id, osm_way_ids, voltage_kv, operator, length_m, geom)
-               values (%s, %s, %s, %s, %s, st_geomfromtext(%s, 4326))""",
+            """insert into line_segments
+               (region_id, osm_way_ids, voltage_kv, operator, length_m, locality, geom)
+               values (%s, %s, %s, %s, %s, %s, st_geomfromtext(%s, 4326))""",
             [
                 (
                     reg.id, [int(r.osm_way_id)],
                     None if pd.isna(r.voltage_kv) else float(r.voltage_kv),
-                    r.operator, float(r.length_m), r.geometry.wkt,
+                    r.operator, float(r.length_m),
+                    getattr(r, "locality", None), r.geometry.wkt,
                 )
                 for r in segs.itertuples()
             ],

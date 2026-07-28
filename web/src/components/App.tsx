@@ -23,7 +23,7 @@ import WeekSelector from "./WeekSelector";
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 flex items-center justify-center bg-[#050607] text-sm text-zinc-600">
+    <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-slate-500">
       Loading map…
     </div>
   ),
@@ -52,7 +52,8 @@ export default function App() {
   const [showCells, setShowCells] = useState(true);
   const [showSegments, setShowSegments] = useState(true);
   const [showFires, setShowFires] = useState(false);
-  const [cellOpacity, setCellOpacity] = useState(0.65);
+  // Soft default so the light land basemap shows through the risk cells.
+  const [cellOpacity, setCellOpacity] = useState(0.45);
   const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
 
   // Load available weeks + historical fires once per region.
@@ -120,7 +121,7 @@ export default function App() {
   const pipelineEmpty = weeks !== null && weeks.length === 0;
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#050607] text-zinc-200">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-100 text-slate-800">
       <Header regionName={region.name} mode={mode} onModeChange={setMode} />
 
       <div className="relative min-h-0 flex-1">
@@ -142,10 +143,16 @@ export default function App() {
         {pipelineEmpty && <EmptyState regionName={region.name} />}
 
         {!pipelineEmpty && (
-          <aside className="absolute bottom-0 left-0 top-0 z-10 flex w-[22rem] flex-col border-r border-zinc-800/70 bg-[#0a0b0d]/85 backdrop-blur-md">
-            <div className="border-b border-zinc-800/70 px-4 pb-2 pt-3">
+          <aside className="absolute bottom-0 left-0 top-0 z-10 flex w-[22.5rem] flex-col border-r border-slate-200 bg-white/92 backdrop-blur-md">
+            {mode === "simple" && (
+              <p className="border-b border-slate-200 bg-orange-50/80 px-4 py-2.5 text-[13px] leading-snug text-slate-700">
+                Each line is a power corridor. Redder = higher wildfire risk
+                this week.
+              </p>
+            )}
+            <div className="border-b border-slate-200 px-4 pb-2 pt-3">
               {weeks === null ? (
-                <p className="pb-1 text-xs text-zinc-500">Loading weeks…</p>
+                <p className="pb-1 text-sm text-slate-500">Loading weeks…</p>
               ) : (
                 <WeekSelector
                   weeks={weeks}
@@ -183,14 +190,14 @@ export default function App() {
           </div>
         )}
 
-        {mode === "advanced" && (
+        {!pipelineEmpty && (
           <div className="pointer-events-none absolute bottom-8 right-3 z-10">
-            <Legend />
+            <Legend compact={mode === "simple"} />
           </div>
         )}
 
         {error && (
-          <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-md border border-red-800/60 bg-red-950/90 px-3 py-1.5 text-xs text-red-300 shadow-lg">
+          <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm text-red-800 shadow-lg">
             {error}
           </div>
         )}

@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050607;
-  --foreground: #e7e9ea;
-  color-scheme: dark;
+  --background: #f6f7f9;
+  --foreground: #1e293b;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -23,28 +23,26 @@ body {
     "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Subtle dark scrollbars for the panels */
+/* Subtle light scrollbars for the panels */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
-/* MapLibre chrome tweaks for the dark theme */
+/* MapLibre chrome tweaks for the light theme */
 .maplibregl-ctrl-attrib {
-  background: rgba(10, 11, 13, 0.7) !important;
+  background: rgba(255, 255, 255, 0.75) !important;
 }
 .maplibregl-ctrl-attrib a {
-  color: #71717a !important;
+  color: #64748b !important;
 }
 .maplibregl-ctrl-group {
-  background: #17181b !important;
-  border: 1px solid #27272a;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08) !important;
 }
 .maplibregl-ctrl-group button + button {
-  border-top: 1px solid #27272a !important;
-}
-.maplibregl-ctrl button .maplibregl-ctrl-icon {
-  filter: invert(0.85);
+  border-top: 1px solid #e2e8f0 !important;
 }
 .maplibregl-canvas {
   outline: none;

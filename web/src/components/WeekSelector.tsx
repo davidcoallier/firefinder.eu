@@ -20,7 +20,7 @@ export default function WeekSelector({ weeks, selected, onSelect }: WeekSelector
   if (weeks.length === 0) return null;
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
-      <span className="mr-1 shrink-0 text-[11px] uppercase tracking-wider text-zinc-500">
+      <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wider text-slate-500">
         Week of
       </span>
       {weeks.map((w, i) => {
@@ -29,15 +29,23 @@ export default function WeekSelector({ weeks, selected, onSelect }: WeekSelector
           <button
             key={w}
             onClick={() => onSelect(w)}
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-sm transition-colors ${
               active
-                ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-300"
-                : "border-zinc-700 bg-zinc-900/60 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                ? "border-orange-400 bg-orange-100 font-medium text-orange-900"
+                : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900"
             }`}
             title={w}
           >
             {formatWeek(w)}
-            {i === 0 && <span className="ml-1 text-[10px] text-zinc-500">latest</span>}
+            {i === 0 && (
+              <span
+                className={`ml-1 text-[10px] ${
+                  active ? "text-orange-700/80" : "text-slate-400"
+                }`}
+              >
+                latest
+              </span>
+            )}
           </button>
         );
       })}

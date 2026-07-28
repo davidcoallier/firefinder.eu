@@ -5,25 +5,39 @@ import type { Mode } from "./Header";
 import type { SegmentFeature, Selection } from "@/lib/types";
 import { AdvancedDriverBars, SimpleDriverBars } from "./DriverBars";
 
-function RiskBadge({ risk }: { risk: number }) {
+function RiskBadge({ risk, mode }: { risk: number; mode: Mode }) {
   const tier = riskTier(risk);
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${tier.className}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tier.className}`}
     >
       <span
-        className="h-1.5 w-1.5 rounded-full"
+        className="h-2 w-2 rounded-full"
         style={{ background: riskColorCss(risk) }}
       />
-      {tier.label} · {formatPct(risk)}
+      {tier.label}
+      {mode === "advanced" && (
+        <span className="font-normal opacity-80">{formatPct(risk)}</span>
+      )}
     </span>
   );
 }
 
-function segmentTitle(f: SegmentFeature): string {
+/** Human-first headline: the nearest town, falling back to the rank. */
+function segmentHeadline(f: SegmentFeature): string {
+  const { locality, rank } = f.properties;
+  return locality ? `Near ${locality}` : `Corridor #${rank}`;
+}
+
+/** Technical secondary line: voltage / operator / length. */
+function segmentSubtitle(f: SegmentFeature): string {
   const p = f.properties;
-  const voltage = p.voltage_kv != null ? `${p.voltage_kv} kV` : "Power line";
-  return `${voltage}${p.operator ? ` · ${p.operator}` : ""}`;
+  const parts = [
+    p.voltage_kv != null ? `${p.voltage_kv} kV` : "Power line",
+    p.operator,
+    formatLength(p.length_m),
+  ].filter((s): s is string => s != null && s !== "");
+  return parts.join(" · ");
 }
 
 function SelectionDetail({
@@ -44,7 +58,7 @@ function SelectionDetail({
     <div>
       <button
         onClick={onBack}
-        className="mb-3 text-xs text-cyan-400 hover:text-cyan-300"
+        className="mb-3 text-sm font-medium text-orange-700 hover:text-orange-800"
       >
         &larr; Back to ranking
       </button>
@@ -53,17 +67,18 @@ function SelectionDetail({
         <>
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="text-sm font-semibold text-zinc-100">
-                Corridor #{selection.feature.properties.rank}
+              <h3 className="text-base font-semibold text-slate-900">
+                {selection.feature.properties.locality
+                  ? `Corridor near ${selection.feature.properties.locality}`
+                  : `Corridor #${selection.feature.properties.rank}`}
               </h3>
-              <p className="mt-0.5 text-xs text-zinc-400">
-                {segmentTitle(selection.feature)} ·{" "}
-                {formatLength(selection.feature.properties.length_m)}
+              <p className="mt-0.5 text-sm text-slate-500">
+                {segmentSubtitle(selection.feature)}
               </p>
             </div>
-            <RiskBadge risk={selection.feature.properties.risk} />
+            <RiskBadge risk={selection.feature.properties.risk} mode={mode} />
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-zinc-500">
+          <p className="mt-3 text-sm leading-relaxed text-slate-500">
             {mode === "simple"
               ? "Why this corridor is at risk this week:"
               : "Full driver attribution (signed contribution to the risk score):"}
@@ -73,14 +88,14 @@ function SelectionDetail({
         <>
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="text-sm font-semibold text-zinc-100">Grid cell</h3>
-              <p className="mt-0.5 font-mono text-[11px] text-zinc-500">
+              <h3 className="text-base font-semibold text-slate-900">Grid cell</h3>
+              <p className="mt-0.5 font-mono text-xs text-slate-500">
                 {selection.cell.h3}
               </p>
             </div>
-            <RiskBadge risk={selection.cell.p} />
+            <RiskBadge risk={selection.cell.p} mode={mode} />
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-zinc-500">
+          <p className="mt-3 text-sm leading-relaxed text-slate-500">
             {mode === "simple"
               ? "Why ignition risk is elevated here:"
               : "Full driver attribution (signed contribution to ignition probability):"}
@@ -96,7 +111,7 @@ function SelectionDetail({
             <AdvancedDriverBars drivers={drivers} />
           )
         ) : (
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-slate-500">
             No driver breakdown available for this{" "}
             {isSegment ? "corridor" : "cell"}.
           </p>
@@ -135,20 +150,20 @@ export default function SidePanel({
         </div>
       ) : (
         <>
-          <div className="border-b border-zinc-800/70 p-4 pb-3">
-            <h2 className="text-sm font-semibold text-zinc-100">
+          <div className="border-b border-slate-200 p-4 pb-3">
+            <h2 className="text-base font-semibold text-slate-900">
               This week&apos;s highest-risk power line corridors
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="mt-0.5 text-sm text-slate-500">
               Top {top.length} of {segments.length} monitored segments. Click one
               to inspect it on the map.
             </p>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {loading ? (
-              <p className="p-4 text-sm text-zinc-500">Loading corridors…</p>
+              <p className="p-4 text-sm text-slate-500">Loading corridors…</p>
             ) : top.length === 0 ? (
-              <p className="p-4 text-sm text-zinc-500">
+              <p className="p-4 text-sm text-slate-500">
                 No corridor scores for this week.
               </p>
             ) : (
@@ -157,20 +172,20 @@ export default function SidePanel({
                   <li key={String(f.properties.id)}>
                     <button
                       onClick={() => onSelectSegment(f)}
-                      className="flex w-full items-center gap-3 border-b border-zinc-800/50 px-4 py-2.5 text-left transition-colors hover:bg-zinc-800/40"
+                      className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-orange-50/60"
                     >
-                      <span className="w-7 shrink-0 text-right font-mono text-xs text-zinc-500">
+                      <span className="w-7 shrink-0 text-right font-mono text-xs text-slate-400">
                         {f.properties.rank}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-zinc-200">
-                          {segmentTitle(f)}
+                        <span className="block truncate text-[15px] font-medium text-slate-800">
+                          {segmentHeadline(f)}
                         </span>
-                        <span className="block text-[11px] text-zinc-500">
-                          {formatLength(f.properties.length_m)}
+                        <span className="block truncate text-xs text-slate-500">
+                          {segmentSubtitle(f)}
                         </span>
                       </span>
-                      <RiskBadge risk={f.properties.risk} />
+                      <RiskBadge risk={f.properties.risk} mode={mode} />
                     </button>
                   </li>
                 ))}

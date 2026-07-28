@@ -8,6 +8,7 @@ import re
 import time
 
 import geopandas as gpd
+import numpy as np
 import requests
 from shapely.geometry import LineString
 from shapely.ops import substring
@@ -98,6 +99,60 @@ def fetch_ways_geofabrik(region):
     return elements
 
 
+def fetch_places(region):
+    """place=city/town/village nodes from the Geofabrik extract, for naming corridors."""
+    import osmium
+
+    w, s, e, n = region.bbox
+    places = []
+
+    class Handler(osmium.SimpleHandler):
+        def node(self, node):
+            if node.tags.get("place") not in ("city", "town", "village"):
+                return
+            name = node.tags.get("name")
+            if not name or not node.location.valid():
+                return
+            lon, lat = node.location.lon, node.location.lat
+            if w <= lon <= e and s <= lat <= n:
+                places.append({"name": name, "kind": node.tags["place"], "lat": lat, "lon": lon})
+
+    raw_dir = DATA_DIR / "raw"
+    for extract in GEOFABRIK[region.id]:
+        pbf = raw_dir / (extract.replace("/", "_") + "-latest.osm.pbf")
+        if pbf.exists():
+            Handler().apply_file(str(pbf))
+    return places
+
+
+def _assign_localities(gdf, region):
+    """Nearest town/city per segment midpoint; villages only fill gaps."""
+    from scipy.spatial import cKDTree
+
+    places = fetch_places(region)
+    if not places:
+        gdf["locality"] = None
+        return gdf
+    mid = gdf.geometry.to_crs("EPSG:3763").interpolate(0.5, normalized=True)
+    mid_xy = np.c_[mid.x, mid.y]
+    metric = gpd.GeoSeries(
+        gpd.points_from_xy([p["lon"] for p in places], [p["lat"] for p in places]),
+        crs="EPSG:4326",
+    ).to_crs("EPSG:3763")
+    xy = np.c_[metric.x, metric.y]
+    towns = [i for i, p in enumerate(places) if p["kind"] in ("city", "town")]
+    d_town, i_town = cKDTree(xy[towns]).query(mid_xy)
+    d_any, i_any = cKDTree(xy).query(mid_xy)
+    names = []
+    for dt, it, da, ia in zip(d_town, i_town, d_any, i_any):
+        if dt <= 10_000:  # a town within 10km beats a closer village
+            names.append(places[towns[it]]["name"])
+        else:
+            names.append(places[ia]["name"])
+    gdf["locality"] = names
+    return gdf
+
+
 def run(region: str):
     reg = regions.get(region)
     rows = []
@@ -125,6 +180,7 @@ def run(region: str):
                 }
             )
     gdf = gpd.GeoDataFrame(rows, crs="EPSG:3763").to_crs("EPSG:4326")
+    gdf = _assign_localities(gdf, reg)
     out_dir = DATA_DIR / "processed" / reg.id
     out_dir.mkdir(parents=True, exist_ok=True)
     gdf.to_parquet(out_dir / "segments.parquet")
