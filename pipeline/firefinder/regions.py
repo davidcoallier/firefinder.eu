@@ -33,4 +33,19 @@ PILOT_PORTUGAL_GALICIA = Region(
     bbox=(-9.6, 36.8, -6.0, 43.8),
 )
 
-ALL_REGIONS = [EU_SOUTHWEST, US_CALIFORNIA]
+# Demo slice: central Portugal — Pedrógão Grande (2017) and Serra da Estrela (2022)
+# fire country. Small enough to process end-to-end on a laptop.
+PT_CENTRO = Region(
+    id="pt-centro",
+    name="Central Portugal",
+    bbox=(-8.8, 39.0, -7.0, 41.0),
+)
+
+ALL_REGIONS = [EU_SOUTHWEST, US_CALIFORNIA, PT_CENTRO]
+
+
+def get(region_id: str) -> Region:
+    for r in ALL_REGIONS + [PILOT_PORTUGAL_GALICIA]:
+        if r.id == region_id:
+            return r
+    raise KeyError(f"unknown region: {region_id}")

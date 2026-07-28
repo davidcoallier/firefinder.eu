@@ -1,0 +1,131 @@
+"""Power line geometry from OpenStreetMap.
+
+Overpass first; if the public mirrors rate-limit us, fall back to parsing the
+Geofabrik country extract locally.
+"""
+
+import re
+import time
+
+import geopandas as gpd
+import requests
+from shapely.geometry import LineString
+from shapely.ops import substring
+
+from firefinder import regions
+from firefinder.config import DATA_DIR
+
+GEOFABRIK = {
+    "pt-centro": ["europe/portugal"],
+    "pilot-pt-galicia": ["europe/portugal", "europe/spain/galicia"],
+}
+
+MIRRORS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+]
+MAX_SEGMENT_M = 5000
+
+
+def _parse_voltage(tags) -> float | None:
+    raw = tags.get("voltage")
+    if not raw:
+        return None
+    m = re.search(r"\d+", raw.split(";")[0])
+    if not m:
+        return None
+    v = float(m.group())
+    return v / 1000 if v > 1000 else v
+
+
+def fetch_ways(region):
+    w, s, e, n = region.bbox
+    q = f'[out:json][timeout:180];way["power"~"^(line|minor_line)$"]({s},{w},{n},{e});out tags geom;'
+    last = None
+    for attempt in range(2):
+        for url in MIRRORS:
+            try:
+                r = requests.post(url, data={"data": q}, timeout=240)
+                r.raise_for_status()
+                return r.json()["elements"]
+            except Exception as err:
+                last = err
+        time.sleep(10 * (attempt + 1))
+    print(f"Overpass unavailable ({last}), falling back to Geofabrik extract")
+    return fetch_ways_geofabrik(region)
+
+
+def fetch_ways_geofabrik(region):
+    """Parse power lines from Geofabrik PBF extracts. Same element shape as Overpass."""
+    import osmium
+
+    w, s, e, n = region.bbox
+    elements = []
+
+    class Handler(osmium.SimpleHandler):
+        def way(self, way):
+            if way.tags.get("power") not in ("line", "minor_line"):
+                return
+            coords = []
+            for node in way.nodes:
+                try:
+                    lon, lat = node.location.lon, node.location.lat
+                except osmium.InvalidLocationError:
+                    continue
+                coords.append({"lon": lon, "lat": lat})
+            if not any(w <= c["lon"] <= e and s <= c["lat"] <= n for c in coords):
+                return
+            elements.append(
+                {"id": way.id, "tags": {t.k: t.v for t in way.tags}, "geometry": coords}
+            )
+
+    raw_dir = DATA_DIR / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    for extract in GEOFABRIK[region.id]:
+        pbf = raw_dir / (extract.replace("/", "_") + "-latest.osm.pbf")
+        if not pbf.exists():
+            url = f"https://download.geofabrik.de/{extract}-latest.osm.pbf"
+            print(f"downloading {url}")
+            with requests.get(url, stream=True, timeout=1200) as r:
+                r.raise_for_status()
+                tmp = pbf.with_suffix(".part")
+                with open(tmp, "wb") as f:
+                    for chunk in r.iter_content(1 << 20):
+                        f.write(chunk)
+                tmp.rename(pbf)
+        Handler().apply_file(str(pbf), locations=True)
+    return elements
+
+
+def run(region: str):
+    reg = regions.get(region)
+    rows = []
+    for way in fetch_ways(reg):
+        coords = [(p["lon"], p["lat"]) for p in way.get("geometry", [])]
+        if len(coords) < 2:
+            continue
+        line = LineString(coords)
+        tags = way.get("tags", {})
+        # split long ways into <=5km corridor segments in a metric CRS
+        metric = gpd.GeoSeries([line], crs="EPSG:4326").to_crs("EPSG:3763").iloc[0]
+        n_parts = max(1, int(metric.length // MAX_SEGMENT_M) + 1)
+        step = metric.length / n_parts
+        for k in range(n_parts):
+            part = substring(metric, k * step, (k + 1) * step)
+            if part.is_empty or part.length < 50:
+                continue
+            rows.append(
+                {
+                    "osm_way_id": way["id"],
+                    "voltage_kv": _parse_voltage(tags),
+                    "operator": tags.get("operator"),
+                    "length_m": round(part.length, 1),
+                    "geometry": part,
+                }
+            )
+    gdf = gpd.GeoDataFrame(rows, crs="EPSG:3763").to_crs("EPSG:4326")
+    out_dir = DATA_DIR / "processed" / reg.id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    gdf.to_parquet(out_dir / "segments.parquet")
+    print(f"{len(gdf)} segments from {gdf['osm_way_id'].nunique()} OSM ways")

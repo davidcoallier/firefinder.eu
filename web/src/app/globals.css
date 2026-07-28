@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050607;
+  --foreground: #e7e9ea;
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Subtle dark scrollbars for the panels */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+
+/* MapLibre chrome tweaks for the dark theme */
+.maplibregl-ctrl-attrib {
+  background: rgba(10, 11, 13, 0.7) !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: #71717a !important;
+}
+.maplibregl-ctrl-group {
+  background: #17181b !important;
+  border: 1px solid #27272a;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid #27272a !important;
+}
+.maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: invert(0.85);
+}
+.maplibregl-canvas {
+  outline: none;
 }
