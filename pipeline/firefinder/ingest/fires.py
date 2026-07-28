@@ -25,7 +25,7 @@ def fetch(region) -> gpd.GeoDataFrame:
         "srsName": "EPSG:4326",
         # WFS 1.1.0 + EPSG:4326 uses lat,lon axis order
         "bbox": f"{s},{w},{n},{e},EPSG:4326",
-        "maxFeatures": "20000",
+        "maxFeatures": "200000",
     }
     last_err = None
     for host in WFS_HOSTS:
