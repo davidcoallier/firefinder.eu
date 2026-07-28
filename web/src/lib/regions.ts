@@ -30,14 +30,14 @@ export const JURISDICTIONS: Jurisdiction[] = [
   {
     id: "es",
     label: "Spain",
-    dataRegionId: "es",
+    dataRegionId: "spain",
     center: [-3.7, 40.2],
     zoom: 5.9,
   },
   {
     id: "fr",
     label: "France",
-    dataRegionId: "fr",
+    dataRegionId: "france",
     center: [2.4, 46.6],
     zoom: 5.6,
   },

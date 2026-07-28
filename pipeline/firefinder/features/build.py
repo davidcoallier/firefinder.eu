@@ -30,9 +30,9 @@ def _cell_centroids(cells: list[str]) -> gpd.GeoDataFrame:
 
 
 def _dist_to_powerline(centroids: gpd.GeoDataFrame, proc_dir) -> pd.DataFrame:
-    segs = gpd.read_parquet(proc_dir / "segments.parquet").to_crs("EPSG:3763")
+    segs = gpd.read_parquet(proc_dir / "segments.parquet").to_crs("EPSG:3035")
     joined = gpd.sjoin_nearest(
-        centroids.to_crs("EPSG:3763"), segs[["geometry"]], distance_col="dist_powerline_m"
+        centroids.to_crs("EPSG:3035"), segs[["geometry"]], distance_col="dist_powerline_m"
     )
     return joined.groupby("h3", as_index=False)["dist_powerline_m"].min()
 
@@ -119,26 +119,41 @@ def run(region: str):
     cell_point = pd.DataFrame({"h3": centroids["h3"], "point": pts["point"].values[nearest]})
 
     weeks = weekly.loc[weekly["week"].dt.month.isin(SEASON_MONTHS), "week"].sort_values().unique()
-    base = pd.MultiIndex.from_product([cells, weeks], names=["h3", "week"]).to_frame(index=False)
-    df = (
-        base.merge(cell_point, on="h3")
-        .merge(weekly.drop(columns=["lat", "lon"]), on=["point", "week"])
-        .merge(static, on="h3", how="left")
-    )
-    # latest composite strictly before the week start, per cell
-    df = pd.merge_asof(
-        df.sort_values("week"),
-        veg[["h3", "month_end", "ndvi_mean", "ndvi_p10", "ndmi_mean", "ndvi_anom"]].rename(
-            columns={"month_end": "week"}
-        ).sort_values("week"),
-        on="week", by="h3", direction="backward", allow_exact_matches=False,
-    )
-    df = df.merge(labels, on=["h3", "week"], how="left")
-    df["fire"] = df["fire"].fillna(0).astype("int8")
-    woy = df["week"].dt.isocalendar().week.astype(float)
-    df["week_sin"] = np.sin(2 * np.pi * woy / 52)
-    df["week_cos"] = np.cos(2 * np.pi * woy / 52)
-    df = df.drop(columns=["point"])
+    veg_cols = veg[["h3", "month_end", "ndvi_mean", "ndvi_p10", "ndmi_mean", "ndvi_anom"]].rename(
+        columns={"month_end": "week"}
+    ).sort_values("week")
+
+    # Assemble per calendar year: country-scale regions produce tens of
+    # millions of cell-weeks, and the merge intermediates for the full range
+    # at once would not fit in memory.
+    chunks = []
+    for year in sorted({w.year for w in pd.DatetimeIndex(weeks)}):
+        weeks_y = [w for w in weeks if w.year == year]
+        base = pd.MultiIndex.from_product([cells, weeks_y], names=["h3", "week"]).to_frame(index=False)
+        df = (
+            base.merge(cell_point, on="h3")
+            .merge(weekly.drop(columns=["lat", "lon"]), on=["point", "week"])
+            .merge(static, on="h3", how="left")
+        )
+        # latest composite strictly before the week start, per cell — include
+        # the previous year's composites so April looks back across new year
+        veg_y = veg_cols[veg_cols["week"].dt.year.isin([year - 1, year])]
+        df = pd.merge_asof(
+            df.sort_values("week"),
+            veg_y,
+            on="week", by="h3", direction="backward", allow_exact_matches=False,
+        )
+        df = df.merge(labels, on=["h3", "week"], how="left")
+        df["fire"] = df["fire"].fillna(0).astype("int8")
+        woy = df["week"].dt.isocalendar().week.astype(float)
+        df["week_sin"] = np.sin(2 * np.pi * woy / 52)
+        df["week_cos"] = np.cos(2 * np.pi * woy / 52)
+        df = df.drop(columns=["point"])
+        for c in df.columns:
+            if df[c].dtype == "float64":
+                df[c] = df[c].astype("float32")
+        chunks.append(df)
+    df = pd.concat(chunks, ignore_index=True)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

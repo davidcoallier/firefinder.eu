@@ -55,7 +55,25 @@ PORTUGAL = Region(
     weather_step=0.5,
 )
 
-ALL_REGIONS = [EU_SOUTHWEST, US_CALIFORNIA, PT_CENTRO, PORTUGAL]
+# Mainland Spain + Balearics (bbox excludes the Canaries, Ceuta and Melilla).
+SPAIN = Region(
+    id="spain",
+    name="Spain",
+    bbox=(-9.4, 36.0, 4.4, 43.9),
+    country="Spain",
+    weather_step=0.5,
+)
+
+# Metropolitan France + Corsica (bbox excludes overseas territories).
+FRANCE = Region(
+    id="france",
+    name="France",
+    bbox=(-5.2, 41.3, 9.6, 51.2),
+    country="France",
+    weather_step=0.5,
+)
+
+ALL_REGIONS = [EU_SOUTHWEST, US_CALIFORNIA, PT_CENTRO, PORTUGAL, SPAIN, FRANCE]
 
 
 def get(region_id: str) -> Region:

@@ -19,6 +19,8 @@ from firefinder.config import DATA_DIR
 GEOFABRIK = {
     "pt-centro": ["europe/portugal"],
     "portugal": ["europe/portugal"],
+    "spain": ["europe/spain"],
+    "france": ["europe/france"],
     "pilot-pt-galicia": ["europe/portugal", "europe/spain/galicia"],
 }
 
@@ -134,12 +136,12 @@ def _assign_localities(gdf, region):
     if not places:
         gdf["locality"] = None
         return gdf
-    mid = gdf.geometry.to_crs("EPSG:3763").interpolate(0.5, normalized=True)
+    mid = gdf.geometry.to_crs("EPSG:3035").interpolate(0.5, normalized=True)
     mid_xy = np.c_[mid.x, mid.y]
     metric = gpd.GeoSeries(
         gpd.points_from_xy([p["lon"] for p in places], [p["lat"] for p in places]),
         crs="EPSG:4326",
-    ).to_crs("EPSG:3763")
+    ).to_crs("EPSG:3035")
     xy = np.c_[metric.x, metric.y]
     towns = [i for i, p in enumerate(places) if p["kind"] in ("city", "town")]
     d_town, i_town = cKDTree(xy[towns]).query(mid_xy)
@@ -167,7 +169,7 @@ def run(region: str):
         line = LineString(coords)
         tags = way.get("tags", {})
         # split long ways into <=5km corridor segments in a metric CRS
-        metric = gpd.GeoSeries([line], crs="EPSG:4326").to_crs("EPSG:3763").iloc[0]
+        metric = gpd.GeoSeries([line], crs="EPSG:4326").to_crs("EPSG:3035").iloc[0]
         n_parts = max(1, int(metric.length // MAX_SEGMENT_M) + 1)
         step = metric.length / n_parts
         for k in range(n_parts):
@@ -183,7 +185,7 @@ def run(region: str):
                     "geometry": part,
                 }
             )
-    gdf = gpd.GeoDataFrame(rows, crs="EPSG:3763").to_crs("EPSG:4326")
+    gdf = gpd.GeoDataFrame(rows, crs="EPSG:3035").to_crs("EPSG:4326")
     gdf = _assign_localities(gdf, reg)
     out_dir = DATA_DIR / "processed" / reg.id
     out_dir.mkdir(parents=True, exist_ok=True)

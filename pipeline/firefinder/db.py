@@ -47,9 +47,12 @@ def load_static(region: str):
             (reg.id,),
         )
         cur.execute("delete from cells where region_id = %s", (reg.id,))
+        # Border cells can fall inside two neighbouring countries' clipped
+        # grids (same H3 id) — first region to load a cell keeps it.
         cur.executemany(
             """insert into cells (h3, region_id, geom, elevation_m, slope_deg, dist_powerline_m)
-               values (%s, %s, st_geomfromtext(%s, 4326), %s, %s, %s)""",
+               values (%s, %s, st_geomfromtext(%s, 4326), %s, %s, %s)
+               on conflict (h3) do nothing""",
             [
                 (
                     c, reg.id, _cell_polygon(c).wkt,

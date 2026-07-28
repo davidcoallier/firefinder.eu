@@ -49,14 +49,14 @@ def run(region: str, week: str):
     db.write_cell_scores(reg.id, wk.date(), cell_rows, version)
 
     # corridor aggregation: cells whose centre falls within 500m of the line
-    segs = db.segment_ids(reg.id).to_crs("EPSG:3763")
+    segs = db.segment_ids(reg.id).to_crs("EPSG:3035")
     segs["geom_buf"] = segs.geometry.buffer(BUFFER_M)
     buf = segs.set_geometry("geom_buf")
     cent = gpd.GeoDataFrame(
         {"h3": df["h3"], "p": p},
         geometry=[Point(lng, lat) for lat, lng in (h3.cell_to_latlng(c) for c in df["h3"])],
         crs="EPSG:4326",
-    ).to_crs("EPSG:3763")
+    ).to_crs("EPSG:3035")
     hits = gpd.sjoin(cent, buf[["id", "geom_buf"]], predicate="within")
     agg = hits.groupby("id").agg(p_max=("p", "max"), p_mean=("p", "mean"))
     agg["risk"] = 0.65 * agg["p_max"] + 0.35 * agg["p_mean"]

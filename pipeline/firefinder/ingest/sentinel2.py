@@ -131,17 +131,34 @@ def run(region: str, start: str, end: str):
                 print(f"  skip {it.id}: {err}")
                 return None
 
+        # Streaming mean accumulation instead of a median stack: memory stays
+        # O(grid) regardless of scene count, which is what lets country-scale
+        # regions (Spain is ~30M pixels x 70 scenes/month) fit in RAM.
+        _, width, height = target_grid(reg)
+        nv_sum = np.zeros((height, width), dtype="float32")
+        nv_cnt = np.zeros((height, width), dtype="int16")
+        nm_sum = np.zeros((height, width), dtype="float32")
+        nm_cnt = np.zeros((height, width), dtype="int16")
+        used = 0
         with ThreadPoolExecutor(max_workers=6) as ex:
-            results = list(tqdm(ex.map(safe, items), total=len(items), desc=month, unit="scene"))
-        ndvis = [r[0] for r in results if r is not None]
-        ndmis = [r[1] for r in results if r is not None]
-        if not ndvis:
+            for res in tqdm(ex.map(safe, items), total=len(items), desc=month, unit="scene"):
+                if res is None:
+                    continue
+                used += 1
+                s_ndvi, s_ndmi = res
+                m = ~np.isnan(s_ndvi)
+                nv_sum[m] += s_ndvi[m]
+                nv_cnt[m] += 1
+                m = ~np.isnan(s_ndmi)
+                nm_sum[m] += s_ndmi[m]
+                nm_cnt[m] += 1
+        if used == 0:
             print(f"  {month}: no usable scenes")
             continue
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # all-NaN pixel stacks are expected
-            ndvi = np.nanmedian(np.stack(ndvis), axis=0).ravel()
-            ndmi = np.nanmedian(np.stack(ndmis), axis=0).ravel()
+            warnings.simplefilter("ignore")  # 0-count pixels divide to NaN on purpose
+            ndvi = np.where(nv_cnt > 0, nv_sum / nv_cnt, np.nan).ravel()
+            ndmi = np.where(nm_cnt > 0, nm_sum / nm_cnt, np.nan).ravel()
         df = pd.DataFrame({"h3": h3_grid, "ndvi": ndvi, "ndmi": ndmi})
         agg = df.groupby("h3").agg(
             ndvi_mean=("ndvi", "mean"),
@@ -153,4 +170,4 @@ def run(region: str, start: str, end: str):
         agg["h3"] = h3_int_to_str(agg["h3"])
         agg["month"] = month
         agg.to_parquet(out, index=False)
-        print(f"  {month}: {len(ndvis)} scenes -> {len(agg)} cells")
+        print(f"  {month}: {used} scenes -> {len(agg)} cells")
