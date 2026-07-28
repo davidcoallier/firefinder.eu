@@ -12,6 +12,14 @@ import {
 } from "@/lib/basemap";
 import { geometryBounds } from "@/lib/colors";
 import {
+  fetchLiveFires,
+  getLiveFiresSnapshot,
+  getServerLiveFiresSnapshot,
+  LIVE_FIRES_REFRESH_MS,
+  setLiveFiresEnabled,
+  subscribeLiveFires,
+} from "@/lib/liveFires";
+import {
   DEFAULT_JURISDICTION,
   JURISDICTIONS,
   type Jurisdiction,
@@ -19,6 +27,8 @@ import {
 import type {
   Cell,
   FireCollection,
+  LiveFireCollection,
+  LiveFireFeature,
   SegmentCollection,
   SegmentFeature,
   Selection,
@@ -28,6 +38,7 @@ import BasemapToggle from "./BasemapToggle";
 import EmptyState from "./EmptyState";
 import Header, { type Mode } from "./Header";
 import Legend from "./Legend";
+import LiveFireCard from "./LiveFireCard";
 import type { MapFocus } from "./MapView";
 import SidePanel from "./SidePanel";
 import WeekSelector from "./WeekSelector";
@@ -65,6 +76,14 @@ export default function App() {
     segments: SegmentCollection | null;
   } | null>(null);
   const [fires, setFires] = useState<FireCollection | null>(null);
+  // NASA FIRMS detections from the last 24h. Preference persists like basemap.
+  const liveFiresOn = useSyncExternalStore(
+    subscribeLiveFires,
+    getLiveFiresSnapshot,
+    getServerLiveFiresSnapshot
+  );
+  const [liveFires, setLiveFires] = useState<LiveFireCollection | null>(null);
+  const [liveFire, setLiveFire] = useState<LiveFireFeature | null>(null);
   // Full grid network (static asset) — gray context under the ranked corridors.
   const [gridContext, setGridContext] = useState<GeoJSON.FeatureCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +133,28 @@ export default function App() {
     };
   }, [regionId]);
 
+  // Live fires: fetch per jurisdiction and refresh every 15 minutes while
+  // the page is open (the FIRMS feeds behind /api/live-fires update with
+  // ~3h latency, so more frequent polling would gain nothing).
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetchLiveFires(jurisdiction.bbox)
+        .then((fc) => {
+          if (!cancelled) setLiveFires(fc);
+        })
+        .catch(() => {
+          /* live fires are a non-critical overlay */
+        });
+    };
+    load();
+    const timer = setInterval(load, LIVE_FIRES_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [jurisdiction]);
+
   // Load cells + segments whenever the selected week changes.
   useEffect(() => {
     if (!week) return;
@@ -158,10 +199,17 @@ export default function App() {
     setWeek(null);
     setWeekData(null);
     setFires(null);
+    setLiveFires(null);
+    setLiveFire(null);
     setGridContext(null);
     setSelection(null);
     setFocus(null);
     setError(null);
+  }, []);
+
+  const handleLiveFiresToggle = useCallback((on: boolean) => {
+    setLiveFiresEnabled(on);
+    if (!on) setLiveFire(null); // don't leave a card up for a hidden layer
   }, []);
 
   const handleSelectSegmentFromList = useCallback((feature: SegmentFeature) => {
@@ -188,6 +236,10 @@ export default function App() {
 
   const pipelineEmpty = weeks !== null && weeks.length === 0;
 
+  const liveFireCount = liveFires?.features.length ?? 0;
+  const liveFiresLabel =
+    liveFireCount > 0 ? `Live fires (24h) · ${liveFireCount}` : "Live fires (24h)";
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-100 text-slate-800">
       <Header
@@ -206,10 +258,13 @@ export default function App() {
           cells={cells}
           segments={segments}
           fires={fires}
+          liveFires={liveFires}
           gridContext={gridContext}
           showCells={showCells}
           showSegments={showSegments}
           showFires={mode === "advanced" && showFires}
+          showLiveFires={liveFiresOn}
+          onSelectLiveFire={setLiveFire}
           cellOpacity={cellOpacity}
           threshold={threshold}
           selection={selection}
@@ -246,6 +301,18 @@ export default function App() {
                   onSelect={handleWeekChange}
                 />
               )}
+              {/* In advanced mode this toggle lives with the layer controls. */}
+              {mode === "simple" && (
+                <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900">
+                  <input
+                    type="checkbox"
+                    checked={liveFiresOn}
+                    onChange={(e) => handleLiveFiresToggle(e.target.checked)}
+                    className="h-3 w-3 accent-orange-600"
+                  />
+                  {liveFiresLabel}
+                </label>
+              )}
             </div>
             <div className="min-h-0 flex-1">
               <SidePanel
@@ -277,6 +344,11 @@ export default function App() {
                 { label: "Risk cells", checked: showCells, onChange: setShowCells },
                 { label: "Corridors", checked: showSegments, onChange: setShowSegments },
                 { label: "Historical fires", checked: showFires, onChange: setShowFires },
+                {
+                  label: liveFiresLabel,
+                  checked: liveFiresOn,
+                  onChange: handleLiveFiresToggle,
+                },
               ]}
               cellOpacity={cellOpacity}
               onCellOpacity={setCellOpacity}
@@ -286,11 +358,13 @@ export default function App() {
           </div>
         )}
 
-        {!pipelineEmpty && (
-          <div className="pointer-events-none absolute bottom-8 right-3 z-10">
-            <Legend compact={mode === "simple"} />
-          </div>
-        )}
+        {/* Bottom-right stack: live-fire info card above the legend. */}
+        <div className="pointer-events-none absolute bottom-8 right-3 z-10 flex flex-col items-end gap-2">
+          {liveFire && (
+            <LiveFireCard feature={liveFire} onClose={() => setLiveFire(null)} />
+          )}
+          {!pipelineEmpty && <Legend compact={mode === "simple"} />}
+        </div>
 
         {toast && (
           <div className="absolute bottom-14 left-1/2 z-20 -translate-x-1/2 rounded-md border border-slate-300 bg-white/95 px-3 py-1.5 text-sm text-slate-700 shadow-lg">

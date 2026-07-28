@@ -4,7 +4,13 @@ import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import { GeoJsonLayer, H3HexagonLayer, type Layer, type PickingInfo } from "deck.gl";
+import {
+  GeoJsonLayer,
+  H3HexagonLayer,
+  TextLayer,
+  type Layer,
+  type PickingInfo,
+} from "deck.gl";
 import {
   buildMapStyle,
   SATELLITE_SOURCE_ID,
@@ -14,6 +20,8 @@ import type { Jurisdiction } from "@/lib/regions";
 import type {
   Cell,
   FireCollection,
+  LiveFireCollection,
+  LiveFireFeature,
   SegmentCollection,
   SegmentFeature,
   Selection,
@@ -44,9 +52,12 @@ type MapViewProps = {
   cells: Cell[];
   segments: SegmentCollection | null;
   fires: FireCollection | null;
+  liveFires: LiveFireCollection | null;
   showCells: boolean;
   showSegments: boolean;
   showFires: boolean;
+  showLiveFires: boolean;
+  onSelectLiveFire: (feature: LiveFireFeature | null) => void;
   gridContext: GeoJSON.FeatureCollection | null;
   cellOpacity: number;
   threshold: number;
@@ -58,6 +69,22 @@ type MapViewProps = {
 function isSegmentFeature(obj: unknown): obj is SegmentFeature {
   const f = obj as SegmentFeature | null;
   return !!f && f.type === "Feature" && f.properties != null && "risk" in f.properties;
+}
+
+function isLiveFireFeature(obj: unknown): obj is LiveFireFeature {
+  const f = obj as LiveFireFeature | null;
+  return (
+    !!f &&
+    f.type === "Feature" &&
+    f.properties != null &&
+    "frp" in f.properties &&
+    "acq_date" in f.properties
+  );
+}
+
+/** 16px base, growing with fire radiative power up to ~30px for frp > 50 MW. */
+function liveFireSize(frp: number): number {
+  return 16 + Math.min(14, Math.max(0, frp) * (14 / 50));
 }
 
 // Light tooltip card (deck.gl's default is dark).
@@ -76,6 +103,13 @@ function getTooltip(
 ): { text: string; style: Partial<CSSStyleDeclaration> } | null {
   const obj = info.object as unknown;
   if (!obj) return null;
+  if (isLiveFireFeature(obj)) {
+    const p = obj.properties;
+    return {
+      text: `Active fire — detected ${p.acq_date} ${p.acq_time}`,
+      style: TOOLTIP_STYLE,
+    };
+  }
   if (isSegmentFeature(obj)) {
     const p = obj.properties;
     const where = p.locality ? `Near ${p.locality}` : `Corridor #${p.rank}`;
@@ -101,9 +135,12 @@ export default function MapView({
   cells,
   segments,
   fires,
+  liveFires,
   showCells,
   showSegments,
   showFires,
+  showLiveFires,
+  onSelectLiveFire,
   gridContext,
   cellOpacity,
   threshold,
@@ -115,6 +152,7 @@ export default function MapView({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onSelectLiveFireRef = useRef(onSelectLiveFire);
   const onSatelliteFailureRef = useRef(onSatelliteFailure);
   /** "mode|jurisdictionId" of the style currently applied to the map. */
   const styleKeyRef = useRef<string | null>(null);
@@ -124,6 +162,9 @@ export default function MapView({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+  useEffect(() => {
+    onSelectLiveFireRef.current = onSelectLiveFire;
+  }, [onSelectLiveFire]);
   useEffect(() => {
     onSatelliteFailureRef.current = onSatelliteFailure;
   }, [onSatelliteFailure]);
@@ -167,8 +208,11 @@ export default function MapView({
       layers: [],
       getTooltip,
       onClick: (info: PickingInfo) => {
-        // Click on empty space clears the selection.
-        if (!info.layer) onSelectRef.current(null);
+        // Click on empty space clears the selection(s).
+        if (!info.layer) {
+          onSelectRef.current(null);
+          onSelectLiveFireRef.current(null);
+        }
       },
     });
     // Non-interleaved MapboxOverlay is an IControl drawing to its own canvas;
@@ -332,8 +376,31 @@ export default function MapView({
       );
     }
 
+    // Live fires stay last so detections draw above cells and corridors.
+    if (showLiveFires && liveFires && liveFires.features.length > 0) {
+      layers.push(
+        new TextLayer<LiveFireFeature>({
+          id: "live-fires",
+          data: liveFires.features,
+          getPosition: (f) => f.geometry.coordinates as [number, number],
+          getText: () => "🔥",
+          getSize: (f) => liveFireSize(f.properties.frp),
+          sizeUnits: "pixels",
+          characterSet: ["🔥"],
+          getTextAnchor: "middle",
+          getAlignmentBaseline: "center",
+          pickable: true,
+          onClick: (info) => {
+            const feature = info.object as LiveFireFeature | undefined;
+            if (feature) onSelectLiveFireRef.current(feature);
+            return true;
+          },
+        })
+      );
+    }
+
     overlay.setProps({ layers });
-  }, [cells, segments, fires, gridContext, showCells, showSegments, showFires, cellOpacity, threshold, selection, basemap]);
+  }, [cells, segments, fires, liveFires, gridContext, showCells, showSegments, showFires, showLiveFires, cellOpacity, threshold, selection, basemap]);
 
   // Fly to a focus target (e.g. a segment picked from the list).
   useEffect(() => {
