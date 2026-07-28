@@ -1,6 +1,23 @@
 "use client";
 
-export default function EmptyState({ regionName }: { regionName: string }) {
+type EmptyStateProps = {
+  jurisdictionLabel: string;
+  /**
+   * Set when another jurisdiction already has published scores — the copy
+   * points users back to it instead of promising an imminent pipeline run.
+   */
+  liveJurisdictionLabel?: string;
+};
+
+/**
+ * Shown when a jurisdiction has no published weeks. Deliberately does NOT
+ * cover the header, so the jurisdiction selector stays clickable and users
+ * can always switch back to a live jurisdiction.
+ */
+export default function EmptyState({
+  jurisdictionLabel,
+  liveJurisdictionLabel,
+}: EmptyStateProps) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
       <div className="pointer-events-auto max-w-sm rounded-xl border border-slate-200 bg-white/95 p-6 text-center shadow-xl">
@@ -11,12 +28,20 @@ export default function EmptyState({ regionName }: { regionName: string }) {
           </svg>
         </div>
         <h2 className="text-base font-semibold text-slate-900">
-          Pipeline hasn&apos;t published scores yet
+          No risk scores published for {jurisdictionLabel} yet
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-          No forecast weeks are available for {regionName} yet. Once the
-          scoring pipeline finishes its first run, weekly risk maps will
-          appear here automatically — check back shortly.
+          {liveJurisdictionLabel ? (
+            <>
+              {`Scoring for ${jurisdictionLabel} hasn't launched yet — ${liveJurisdictionLabel} is live. Switch jurisdiction in the header above to see this week's risk map.`}
+            </>
+          ) : (
+            <>
+              Once the scoring pipeline finishes its first run for{" "}
+              {jurisdictionLabel}, weekly risk maps will appear here
+              automatically — check back shortly.
+            </>
+          )}
         </p>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import type { BasemapMode } from "./basemap";
 import type { Geometry } from "./types";
 
 function clamp01(x: number): number {
@@ -9,14 +10,16 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 /**
- * Fire risk ramp for a LIGHT basemap: amber -> red-orange -> dark crimson.
- * The visible end starts at amber (pale yellow vanishes on white) and the
- * severe end goes dark so it still reads against light terrain. sqrt scaling
- * lifts the low-probability end so sparse ignition probabilities are visible.
+ * Fire risk ramp: amber -> red-orange -> dark crimson. The visible end starts
+ * at amber (pale yellow vanishes on white) and the severe end goes dark so it
+ * still reads against light terrain. sqrt scaling lifts the low-probability
+ * end so sparse ignition probabilities are visible. On the satellite basemap
+ * the alpha floor is raised so faint hexes stay visible over busy imagery.
  */
 export function riskColor(
   p: number,
-  opacity = 1
+  opacity = 1,
+  basemap: BasemapMode = "plain"
 ): [number, number, number, number] {
   const t = Math.sqrt(clamp01(p));
   // amber (245,158,11) -> red-orange (220,70,25) -> dark crimson (140,15,35)
@@ -32,7 +35,8 @@ export function riskColor(
     g = lerp(70, 15, u);
     b = lerp(25, 35, u);
   }
-  const a = (55 + 185 * t) * clamp01(opacity);
+  const alphaFloor = basemap === "satellite" ? 90 : 55;
+  const a = (alphaFloor + (240 - alphaFloor) * t) * clamp01(opacity);
   return [Math.round(r), Math.round(g), Math.round(b), Math.round(a)];
 }
 
@@ -40,12 +44,18 @@ export function riskColor(
 export const CORRIDOR_RISK_FLOOR = 0.35;
 
 /**
- * Corridor line color: below the floor, a thin neutral gray so low-risk
- * lines read as context; above it, a colorblind-safer amber-yellow ->
- * orange -> crimson ramp.
+ * Corridor line color: below the floor, a thin neutral line so low-risk
+ * corridors read as context — gray on the plain basemap, light on dark
+ * satellite imagery; above it, a colorblind-safer amber-yellow -> orange ->
+ * crimson ramp that works on both.
  */
-export function corridorColor(risk: number): [number, number, number, number] {
-  if (risk < CORRIDOR_RISK_FLOOR) return [120, 125, 135, 90];
+export function corridorColor(
+  risk: number,
+  basemap: BasemapMode = "plain"
+): [number, number, number, number] {
+  if (risk < CORRIDOR_RISK_FLOOR) {
+    return basemap === "satellite" ? [235, 238, 242, 140] : [120, 125, 135, 90];
+  }
   const t = (clamp01(risk) - CORRIDOR_RISK_FLOOR) / (1 - CORRIDOR_RISK_FLOOR);
   // amber-yellow (217,160,0) -> orange (234,88,12) -> crimson (153,27,27)
   let r: number, g: number, b: number;

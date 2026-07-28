@@ -1,39 +1,74 @@
 "use client";
 
+import type { Jurisdiction } from "@/lib/regions";
+
 export type Mode = "simple" | "advanced";
 
 type HeaderProps = {
-  regionName: string;
+  jurisdictions: Jurisdiction[];
+  jurisdiction: Jurisdiction;
+  onJurisdictionChange: (jurisdiction: Jurisdiction) => void;
   mode: Mode;
   onModeChange: (mode: Mode) => void;
 };
 
-export default function Header({ regionName, mode, onModeChange }: HeaderProps) {
+export default function Header({
+  jurisdictions,
+  jurisdiction,
+  onJurisdictionChange,
+  mode,
+  onModeChange,
+}: HeaderProps) {
   return (
-    <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4">
-      <div className="flex items-baseline gap-3">
+    <header className="z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4">
+      <div className="flex min-w-0 items-baseline gap-3">
         <h1 className="text-lg font-semibold tracking-tight text-slate-900">
           <span className="text-orange-600">fire</span>finder
         </h1>
-        <p className="hidden text-sm text-slate-500 sm:block">
-          Weekly wildfire ignition risk along power-grid corridors — {regionName}
+        <p className="hidden truncate text-sm text-slate-500 lg:block">
+          Weekly wildfire ignition risk along power-grid corridors —{" "}
+          {jurisdiction.label}
         </p>
       </div>
-      <div className="flex items-center rounded-full border border-slate-300 bg-slate-100 p-0.5 text-sm">
-        {(["simple", "advanced"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => onModeChange(m)}
-            aria-pressed={mode === m}
-            className={`rounded-full px-3 py-1 capitalize transition-colors ${
-              mode === m
-                ? "bg-white font-medium text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            {m}
-          </button>
-        ))}
+
+      <div className="flex shrink-0 items-center gap-2">
+        <div
+          role="group"
+          aria-label="Jurisdiction"
+          className="flex items-center rounded-full border border-slate-300 bg-slate-100 p-0.5 text-sm"
+        >
+          {jurisdictions.map((j) => (
+            <button
+              key={j.id}
+              onClick={() => onJurisdictionChange(j)}
+              aria-pressed={jurisdiction.id === j.id}
+              className={`rounded-full px-3 py-1 transition-colors ${
+                jurisdiction.id === j.id
+                  ? "bg-white font-medium text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {j.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center rounded-full border border-slate-300 bg-slate-100 p-0.5 text-sm">
+          {(["simple", "advanced"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => onModeChange(m)}
+              aria-pressed={mode === m}
+              className={`rounded-full px-3 py-1 capitalize transition-colors ${
+                mode === m
+                  ? "bg-white font-medium text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
     </header>
   );

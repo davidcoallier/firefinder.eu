@@ -5,7 +5,12 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { GeoJsonLayer, H3HexagonLayer, type Layer, type PickingInfo } from "deck.gl";
-import type { Region } from "@/lib/regions";
+import {
+  buildMapStyle,
+  SATELLITE_SOURCE_ID,
+  type BasemapMode,
+} from "@/lib/basemap";
+import type { Jurisdiction } from "@/lib/regions";
 import type {
   Cell,
   FireCollection,
@@ -22,10 +27,8 @@ import {
   riskTier,
 } from "@/lib/colors";
 
-// Light, terrain-tinted basemap with town/road labels — keeps geographic
-// context visible at every zoom level.
-const BASEMAP_STYLE =
-  "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+/** Consecutive satellite tile failures before we report the source as broken. */
+const SATELLITE_ERROR_LIMIT = 3;
 
 export type MapFocus = {
   bounds: [[number, number], [number, number]];
@@ -34,7 +37,10 @@ export type MapFocus = {
 };
 
 type MapViewProps = {
-  region: Region;
+  region: Jurisdiction;
+  basemap: BasemapMode;
+  /** Fired once when satellite tiles repeatedly fail (e.g. blocked network). */
+  onSatelliteFailure?: () => void;
   cells: Cell[];
   segments: SegmentCollection | null;
   fires: FireCollection | null;
@@ -89,6 +95,8 @@ function getTooltip(
 
 export default function MapView({
   region,
+  basemap,
+  onSatelliteFailure,
   cells,
   segments,
   fires,
@@ -105,23 +113,52 @@ export default function MapView({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onSatelliteFailureRef = useRef(onSatelliteFailure);
+  /** "mode|jurisdictionId" of the style currently applied to the map. */
+  const styleKeyRef = useRef<string | null>(null);
+  const flownRegionIdRef = useRef<string | null>(null);
+  const satelliteErrorsRef = useRef(0);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+  useEffect(() => {
+    onSatelliteFailureRef.current = onSatelliteFailure;
+  }, [onSatelliteFailure]);
 
-  // Init map once.
+  // Init map once. Style + camera use whatever props are current at mount;
+  // later changes are handled by the setStyle / flyTo effects below.
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: BASEMAP_STYLE,
+      style: buildMapStyle(basemap, region.coverageBbox),
       center: region.center,
       zoom: region.zoom,
       attributionControl: { compact: true },
     });
+    styleKeyRef.current = `${basemap}|${region.id}`;
+    if (process.env.NODE_ENV === "development") {
+      (window as unknown as Record<string, unknown>).__ff_map = map;
+    }
+    flownRegionIdRef.current = region.id;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+
+    // Detect repeated satellite tile failures (ad-blockers, offline) so the
+    // app can fall back to the self-contained plain basemap. Other errors are
+    // logged: attaching any 'error' listener disables maplibre's default log.
+    map.on("error", (e) => {
+      const ev = e as { sourceId?: string; error?: Error };
+      if (ev.sourceId === SATELLITE_SOURCE_ID) {
+        satelliteErrorsRef.current += 1;
+        if (satelliteErrorsRef.current === SATELLITE_ERROR_LIMIT) {
+          onSatelliteFailureRef.current?.();
+        }
+        return;
+      }
+      console.error(ev.error ?? e);
+    });
 
     const overlay = new MapboxOverlay({
       interleaved: false,
@@ -132,6 +169,8 @@ export default function MapView({
         if (!info.layer) onSelectRef.current(null);
       },
     });
+    // Non-interleaved MapboxOverlay is an IControl drawing to its own canvas;
+    // controls are not part of the style, so it survives map.setStyle below.
     map.addControl(overlay as unknown as maplibregl.IControl);
 
     mapRef.current = map;
@@ -145,6 +184,30 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Swap the basemap style when the mode (or jurisdiction coverage) changes.
+  // setStyle diffs by default, so a coverage-only change is a cheap patch.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const key = `${basemap}|${region.id}`;
+    if (styleKeyRef.current === key) return;
+    styleKeyRef.current = key;
+    map.setStyle(buildMapStyle(basemap, region.coverageBbox));
+  }, [basemap, region]);
+
+  // Fly to the jurisdiction when it changes (initial camera is set at init).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || flownRegionIdRef.current === region.id) return;
+    flownRegionIdRef.current = region.id;
+    map.flyTo({
+      center: region.center,
+      zoom: region.zoom,
+      duration: 1600,
+      essential: true,
+    });
+  }, [region]);
+
   // Rebuild deck layers whenever inputs change.
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -155,6 +218,23 @@ export default function MapView({
     const selectedCellId = selection?.kind === "cell" ? selection.cell.h3 : null;
 
     const layers: Layer[] = [];
+
+    // Plain mode draws land through deck: maplibre fetches geojson sources in
+    // a worker where our local asset URL silently fails, so we bypass it.
+    if (basemap === "plain") {
+      layers.push(
+        new GeoJsonLayer({
+          id: "plain-countries",
+          data: "/basemap/countries.geojson",
+          stroked: true,
+          filled: true,
+          getFillColor: [244, 241, 234, 255],
+          getLineColor: [174, 182, 194, 255],
+          lineWidthMinPixels: 1,
+          pickable: false,
+        })
+      );
+    }
 
     if (showFires && fires) {
       layers.push(
@@ -183,7 +263,7 @@ export default function MapView({
           getFillColor: (d) =>
             d.h3 === selectedCellId
               ? ACCENT_SELECT
-              : riskColor(d.p, cellOpacity),
+              : riskColor(d.p, cellOpacity, basemap),
           pickable: true,
           onClick: (info) => {
             const cell = info.object as Cell | undefined;
@@ -191,7 +271,7 @@ export default function MapView({
             return true;
           },
           updateTriggers: {
-            getFillColor: [cellOpacity, selectedCellId],
+            getFillColor: [cellOpacity, selectedCellId, basemap],
           },
         })
       );
@@ -207,7 +287,7 @@ export default function MapView({
           getLineColor: (f) => {
             const props = (f as unknown as SegmentFeature).properties;
             if (props.id === selectedSegmentId) return ACCENT_SELECT;
-            return corridorColor(props.risk);
+            return corridorColor(props.risk, basemap);
           },
           getLineWidth: (f) => {
             const props = (f as unknown as SegmentFeature).properties;
@@ -224,7 +304,7 @@ export default function MapView({
             return true;
           },
           updateTriggers: {
-            getLineColor: [selectedSegmentId],
+            getLineColor: [selectedSegmentId, basemap],
             getLineWidth: [selectedSegmentId],
           },
         })
@@ -232,7 +312,7 @@ export default function MapView({
     }
 
     overlay.setProps({ layers });
-  }, [cells, segments, fires, showCells, showSegments, showFires, cellOpacity, threshold, selection]);
+  }, [cells, segments, fires, showCells, showSegments, showFires, cellOpacity, threshold, selection, basemap]);
 
   // Fly to a focus target (e.g. a segment picked from the list).
   useEffect(() => {

@@ -1,10 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { fetchCells, fetchFires, fetchSegments, fetchWeeks } from "@/lib/api";
+import {
+  getBasemapSnapshot,
+  getServerBasemapSnapshot,
+  setBasemapMode,
+  subscribeBasemap,
+  type BasemapMode,
+} from "@/lib/basemap";
 import { geometryBounds } from "@/lib/colors";
-import { DEFAULT_REGION } from "@/lib/regions";
+import {
+  DEFAULT_JURISDICTION,
+  JURISDICTIONS,
+  type Jurisdiction,
+} from "@/lib/regions";
 import type {
   Cell,
   FireCollection,
@@ -13,6 +24,7 @@ import type {
   Selection,
 } from "@/lib/types";
 import AdvancedControls from "./AdvancedControls";
+import BasemapToggle from "./BasemapToggle";
 import EmptyState from "./EmptyState";
 import Header, { type Mode } from "./Header";
 import Legend from "./Legend";
@@ -33,9 +45,18 @@ const MapView = dynamic(() => import("./MapView"), {
 const DEFAULT_THRESHOLD = 0.05;
 
 export default function App() {
-  const region = DEFAULT_REGION;
+  const [jurisdiction, setJurisdiction] = useState<Jurisdiction>(DEFAULT_JURISDICTION);
+  const regionId = jurisdiction.dataRegionId;
 
   const [mode, setMode] = useState<Mode>("simple");
+  // Persisted preference lives in a small external store (see lib/basemap):
+  // SSR renders "satellite", the stored choice takes over on the client.
+  const basemap = useSyncExternalStore(
+    subscribeBasemap,
+    getBasemapSnapshot,
+    getServerBasemapSnapshot
+  );
+  const [toast, setToast] = useState<string | null>(null);
   const [weeks, setWeeks] = useState<string[] | null>(null); // null = loading
   const [week, setWeek] = useState<string | null>(null);
   const [weekData, setWeekData] = useState<{
@@ -52,14 +73,14 @@ export default function App() {
   const [showCells, setShowCells] = useState(true);
   const [showSegments, setShowSegments] = useState(true);
   const [showFires, setShowFires] = useState(false);
-  // Soft default so the light land basemap shows through the risk cells.
+  // Soft default so the basemap shows through the risk cells.
   const [cellOpacity, setCellOpacity] = useState(0.45);
   const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
 
-  // Load available weeks + historical fires once per region.
+  // Load available weeks + historical fires once per jurisdiction.
   useEffect(() => {
     let cancelled = false;
-    fetchWeeks(region.id)
+    fetchWeeks(regionId)
       .then((ws) => {
         if (cancelled) return;
         setWeeks(ws);
@@ -71,7 +92,7 @@ export default function App() {
         setWeeks([]);
         setError(e instanceof Error ? e.message : String(e));
       });
-    fetchFires(region.id)
+    fetchFires(regionId)
       .then((fc) => {
         if (!cancelled) setFires(fc);
       })
@@ -81,13 +102,13 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [region.id]);
+  }, [regionId]);
 
   // Load cells + segments whenever the selected week changes.
   useEffect(() => {
     if (!week) return;
     let cancelled = false;
-    Promise.all([fetchCells(region.id, week), fetchSegments(region.id, week)])
+    Promise.all([fetchCells(regionId, week), fetchSegments(regionId, week)])
       .then(([cs, segs]) => {
         if (cancelled) return;
         setWeekData({ week, cells: cs, segments: segs });
@@ -101,7 +122,14 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [region.id, week]);
+  }, [regionId, week]);
+
+  // Auto-dismiss the basemap toast.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const cells = weekData?.cells ?? [];
   const segments = weekData?.segments ?? null;
@@ -112,21 +140,58 @@ export default function App() {
     setSelection(null);
   }, []);
 
+  const handleJurisdictionChange = useCallback((j: Jurisdiction) => {
+    setJurisdiction(j);
+    // Reset per-jurisdiction data so the switch shows a clean loading state
+    // while the effects above refetch weeks / cells / segments / fires.
+    setWeeks(null);
+    setWeek(null);
+    setWeekData(null);
+    setFires(null);
+    setSelection(null);
+    setFocus(null);
+    setError(null);
+  }, []);
+
   const handleSelectSegmentFromList = useCallback((feature: SegmentFeature) => {
     setSelection({ kind: "segment", feature });
     const bounds = geometryBounds(feature.geometry);
     if (bounds) setFocus({ bounds, key: Date.now() });
   }, []);
 
+  const handleBasemapChange = useCallback((m: BasemapMode) => {
+    setBasemapMode(m);
+    setToast(null);
+  }, []);
+
+  // Satellite tiles repeatedly failed (ad-blocker / offline): fall back to the
+  // self-contained plain basemap. Deliberately not persisted, so the user's
+  // stored preference survives a flaky session.
+  const handleSatelliteFailure = useCallback(() => {
+    if (getBasemapSnapshot() !== "satellite") return;
+    setBasemapMode("plain", { persist: false });
+    setToast(
+      "Satellite imagery couldn't load (possibly blocked by an extension) — switched to the plain map."
+    );
+  }, []);
+
   const pipelineEmpty = weeks !== null && weeks.length === 0;
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-100 text-slate-800">
-      <Header regionName={region.name} mode={mode} onModeChange={setMode} />
+      <Header
+        jurisdictions={JURISDICTIONS}
+        jurisdiction={jurisdiction}
+        onJurisdictionChange={handleJurisdictionChange}
+        mode={mode}
+        onModeChange={setMode}
+      />
 
       <div className="relative min-h-0 flex-1">
         <MapView
-          region={region}
+          region={jurisdiction}
+          basemap={basemap}
+          onSatelliteFailure={handleSatelliteFailure}
           cells={cells}
           segments={segments}
           fires={fires}
@@ -140,7 +205,16 @@ export default function App() {
           focus={focus}
         />
 
-        {pipelineEmpty && <EmptyState regionName={region.name} />}
+        {pipelineEmpty && (
+          <EmptyState
+            jurisdictionLabel={jurisdiction.label}
+            liveJurisdictionLabel={
+              jurisdiction.id !== DEFAULT_JURISDICTION.id
+                ? DEFAULT_JURISDICTION.label
+                : undefined
+            }
+          />
+        )}
 
         {!pipelineEmpty && (
           <aside className="absolute bottom-0 left-0 top-0 z-10 flex w-[22.5rem] flex-col border-r border-slate-200 bg-white/92 backdrop-blur-md">
@@ -174,6 +248,16 @@ export default function App() {
           </aside>
         )}
 
+        {/* Basemap switcher: bottom-left map corner, clear of the side panel
+            and above maplibre's attribution control in stacking order. */}
+        <div
+          className={`absolute bottom-3 z-10 ${
+            pipelineEmpty ? "left-3" : "left-[23.5rem]"
+          }`}
+        >
+          <BasemapToggle mode={basemap} onChange={handleBasemapChange} />
+        </div>
+
         {mode === "advanced" && !pipelineEmpty && (
           <div className="pointer-events-none absolute right-3 top-3 z-10">
             <AdvancedControls
@@ -193,6 +277,12 @@ export default function App() {
         {!pipelineEmpty && (
           <div className="pointer-events-none absolute bottom-8 right-3 z-10">
             <Legend compact={mode === "simple"} />
+          </div>
+        )}
+
+        {toast && (
+          <div className="absolute bottom-14 left-1/2 z-20 -translate-x-1/2 rounded-md border border-slate-300 bg-white/95 px-3 py-1.5 text-sm text-slate-700 shadow-lg">
+            {toast}
           </div>
         )}
 
