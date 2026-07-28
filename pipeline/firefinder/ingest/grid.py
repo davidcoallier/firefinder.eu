@@ -18,6 +18,7 @@ from firefinder.config import DATA_DIR
 
 GEOFABRIK = {
     "pt-centro": ["europe/portugal"],
+    "portugal": ["europe/portugal"],
     "pilot-pt-galicia": ["europe/portugal", "europe/spain/galicia"],
 }
 

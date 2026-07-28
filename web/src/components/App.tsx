@@ -65,6 +65,8 @@ export default function App() {
     segments: SegmentCollection | null;
   } | null>(null);
   const [fires, setFires] = useState<FireCollection | null>(null);
+  // Full grid network (static asset) — gray context under the ranked corridors.
+  const [gridContext, setGridContext] = useState<GeoJSON.FeatureCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -98,6 +100,14 @@ export default function App() {
       })
       .catch(() => {
         /* fires are a non-critical overlay */
+      });
+    fetch(`/basemap/grid-${regionId}.geojson`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((fc: GeoJSON.FeatureCollection | null) => {
+        if (!cancelled) setGridContext(fc);
+      })
+      .catch(() => {
+        /* context layer is optional */
       });
     return () => {
       cancelled = true;
@@ -148,6 +158,7 @@ export default function App() {
     setWeek(null);
     setWeekData(null);
     setFires(null);
+    setGridContext(null);
     setSelection(null);
     setFocus(null);
     setError(null);
@@ -195,6 +206,7 @@ export default function App() {
           cells={cells}
           segments={segments}
           fires={fires}
+          gridContext={gridContext}
           showCells={showCells}
           showSegments={showSegments}
           showFires={mode === "advanced" && showFires}

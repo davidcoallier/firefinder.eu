@@ -32,7 +32,8 @@ def _year_chunks():
     return out
 
 
-def grid_points(region, step=0.25):
+def grid_points(region, step=None):
+    step = step or getattr(region, "weather_step", 0.25)
     w, s, e, n = region.bbox
     lats = np.arange(s + step / 2, n, step)
     lons = np.arange(w + step / 2, e, step)

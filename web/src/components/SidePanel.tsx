@@ -155,7 +155,7 @@ export default function SidePanel({
               This week&apos;s highest-risk power line corridors
             </h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              Top {top.length} of {segments.length} monitored segments. Click one
+              The {top.length} highest-risk corridors this week. Click one
               to inspect it on the map.
             </p>
           </div>

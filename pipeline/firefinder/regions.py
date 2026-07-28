@@ -9,6 +9,11 @@ class Region:
     name: str
     # (min_lon, min_lat, max_lon, max_lat)
     bbox: tuple[float, float, float, float]
+    # Natural Earth country name — when set, the H3 grid is clipped to the
+    # country polygon instead of the raw bbox
+    country: str | None = None
+    # weather sample-grid spacing in degrees; coarser for large regions
+    weather_step: float = 0.25
 
 
 # Iberia + southern France. Covers the catastrophic 2017 and 2022 fire seasons.
@@ -41,7 +46,16 @@ PT_CENTRO = Region(
     bbox=(-8.8, 39.0, -7.0, 41.0),
 )
 
-ALL_REGIONS = [EU_SOUTHWEST, US_CALIFORNIA, PT_CENTRO]
+# Full mainland Portugal, clipped to the country polygon (Algarve included).
+PORTUGAL = Region(
+    id="portugal",
+    name="Portugal",
+    bbox=(-9.6, 36.9, -6.1, 42.2),
+    country="Portugal",
+    weather_step=0.5,
+)
+
+ALL_REGIONS = [EU_SOUTHWEST, US_CALIFORNIA, PT_CENTRO, PORTUGAL]
 
 
 def get(region_id: str) -> Region:

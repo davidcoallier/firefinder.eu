@@ -9,7 +9,7 @@ import numpy as np
 import h3
 from rasterio.transform import from_origin
 
-from firefinder.config import DATA_DIR
+from firefinder.config import DATA_DIR, REPO_ROOT
 from firefinder.regions import Region
 
 H3_RES = 7  # ~5 km² hexes; res is a constant so caches stay coherent
@@ -17,9 +17,36 @@ GRID_RES_DEG = 0.002  # ~200 m
 
 
 def cells_for_region(region: Region) -> list[str]:
+    if region.country:
+        return _cells_for_country(region)
     w, s, e, n = region.bbox
     poly = h3.LatLngPoly([(s, w), (s, e), (n, e), (n, w)])
     return sorted(h3.polygon_to_cells(poly, H3_RES))
+
+
+def _cells_for_country(region: Region) -> list[str]:
+    """H3 cells clipped to the country polygon (Natural Earth 50m)."""
+    import json
+
+    from shapely.geometry import box, shape
+
+    geo = json.loads(
+        (REPO_ROOT / "web" / "public" / "basemap" / "countries.geojson").read_text()
+    )
+    feats = [f for f in geo["features"] if f["properties"]["name"] == region.country]
+    if not feats:
+        raise KeyError(f"country not in basemap asset: {region.country}")
+    clip = box(*region.bbox)
+    cells: set[str] = set()
+    for f in feats:
+        geom = shape(f["geometry"]).intersection(clip)
+        polys = getattr(geom, "geoms", [geom])
+        for poly in polys:
+            if poly.is_empty or poly.geom_type != "Polygon":
+                continue
+            # buffer slightly so coastal cells whose centre is offshore still count
+            cells |= set(h3.geo_to_cells(poly.buffer(0.02), H3_RES))
+    return sorted(cells)
 
 
 def target_grid(region: Region):

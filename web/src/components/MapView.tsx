@@ -47,6 +47,7 @@ type MapViewProps = {
   showCells: boolean;
   showSegments: boolean;
   showFires: boolean;
+  gridContext: GeoJSON.FeatureCollection | null;
   cellOpacity: number;
   threshold: number;
   selection: Selection | null;
@@ -103,6 +104,7 @@ export default function MapView({
   showCells,
   showSegments,
   showFires,
+  gridContext,
   cellOpacity,
   threshold,
   selection,
@@ -236,6 +238,25 @@ export default function MapView({
       );
     }
 
+    // Full grid network as neutral context under everything risk-colored.
+    if (showSegments && gridContext) {
+      layers.push(
+        new GeoJsonLayer({
+          id: "grid-context",
+          data: gridContext,
+          stroked: false,
+          filled: false,
+          getLineColor:
+            basemap === "satellite" ? [235, 238, 242, 120] : [125, 130, 140, 80],
+          lineWidthMinPixels: 1,
+          getLineWidth: 1,
+          lineWidthUnits: "pixels",
+          pickable: false,
+          updateTriggers: { getLineColor: [basemap] },
+        })
+      );
+    }
+
     if (showFires && fires) {
       layers.push(
         new GeoJsonLayer({
@@ -312,7 +333,7 @@ export default function MapView({
     }
 
     overlay.setProps({ layers });
-  }, [cells, segments, fires, showCells, showSegments, showFires, cellOpacity, threshold, selection, basemap]);
+  }, [cells, segments, fires, gridContext, showCells, showSegments, showFires, cellOpacity, threshold, selection, basemap]);
 
   // Fly to a focus target (e.g. a segment picked from the list).
   useEffect(() => {

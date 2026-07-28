@@ -67,6 +67,14 @@ def features_build(region: str):
     build.run(region=region)
 
 
+@app.command("export-grid")
+def export_grid(region: str):
+    """Export the full grid network as a static geojson context layer for the web app."""
+    from firefinder import export
+
+    export.grid_geojson(region)
+
+
 @app.command("db-load")
 def db_load(region: str):
     """Load regions, cells, line segments and fire events into Supabase."""
