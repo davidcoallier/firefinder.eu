@@ -64,6 +64,9 @@ def _warp_into(href, region, dst, resampling):
 
 def run(region: str):
     reg = regions.get(region)
+    if (DATA_DIR / "processed" / reg.id / "terrain.parquet").exists():
+        print("terrain.parquet exists, skipping")
+        return
     transform, width, height = target_grid(reg)
     w, s, e, n = reg.bbox
 

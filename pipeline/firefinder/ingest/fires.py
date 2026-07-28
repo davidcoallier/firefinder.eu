@@ -42,6 +42,9 @@ def fetch(region) -> gpd.GeoDataFrame:
 
 def run(region: str):
     reg = regions.get(region)
+    if (DATA_DIR / "processed" / reg.id / "fires.parquet").exists():
+        print("fires.parquet exists, skipping")
+        return
     gdf = fetch(reg)
     cols = {c.lower(): c for c in gdf.columns}
     date_col = cols.get("firedate") or cols.get("initialdate")

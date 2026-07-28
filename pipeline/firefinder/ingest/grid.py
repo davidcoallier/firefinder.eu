@@ -156,6 +156,9 @@ def _assign_localities(gdf, region):
 
 def run(region: str):
     reg = regions.get(region)
+    if (DATA_DIR / "processed" / reg.id / "segments.parquet").exists():
+        print("segments.parquet exists, skipping")
+        return
     rows = []
     for way in fetch_ways(reg):
         coords = [(p["lon"], p["lat"]) for p in way.get("geometry", [])]
