@@ -23,10 +23,9 @@ export const JURISDICTIONS: Jurisdiction[] = [
   {
     id: "pt",
     label: "Portugal",
-    dataRegionId: "pt-centro",
+    dataRegionId: "portugal",
     center: [-8.0, 39.7],
     zoom: 6.4,
-    coverageBbox: [-8.8, 39.0, -7.0, 41.0],
   },
   {
     id: "es",

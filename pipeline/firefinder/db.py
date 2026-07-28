@@ -74,7 +74,8 @@ def load_static(region: str):
                 (
                     reg.id, [int(r.osm_way_id)],
                     None if pd.isna(r.voltage_kv) else float(r.voltage_kv),
-                    r.operator, float(r.length_m),
+                    None if pd.isna(r.operator) else str(r.operator),
+                    float(r.length_m),
                     getattr(r, "locality", None), r.geometry.wkt,
                 )
                 for r in segs.itertuples()
