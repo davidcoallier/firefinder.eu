@@ -215,5 +215,7 @@ export default function MapView({
     map.fitBounds(focus.bounds, { padding: 100, maxZoom: 12.5, duration: 900 });
   }, [focus]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  // h-full/w-full because maplibre's stylesheet overrides `absolute` with
+  // position:relative on .maplibregl-map, which zeroes out inset-0 sizing
+  return <div ref={containerRef} className="absolute inset-0 h-full w-full" />;
 }
