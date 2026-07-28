@@ -63,10 +63,10 @@ def run(region: str, week: str):
     agg = agg.sort_values("risk", ascending=False)
     agg["rank"] = range(1, len(agg) + 1)
 
-    top_cell = hits.loc[hits.groupby("id")["p"].idxmax()].set_index("id")["h3"]
+    top_cell = hits.sort_values("p").groupby("id")["h3"].last()
     cell_drivers = {df.at[i, "h3"]: drivers(i) for i in range(len(df))}
     seg_rows = [
-        (i, r.risk, r.rank, cell_drivers.get(top_cell.get(i), {}))
+        (i, r["risk"], r["rank"], cell_drivers.get(top_cell.get(i), {}))
         for i, r in agg.iterrows()
     ]
     db.write_segment_scores(reg.id, wk.date(), seg_rows, version)
