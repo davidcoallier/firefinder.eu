@@ -13,18 +13,45 @@ npx supabase link --project-ref <project-ref>
 npx supabase db push                     # applies every migration in supabase/migrations
 ```
 
-Load the data from your machine into the hosted DB (grab the connection string
-from Supabase → Project Settings → Database, use the pooler URI):
+Load the data from your machine into the hosted DB. Use the **Session pooler**
+connection string (dashboard → Connect → Session pooler), NOT the direct
+`db.<ref>.supabase.co` host: new projects resolve the direct host to IPv6 only,
+which fails on many networks with "failed to resolve host". URL-encode special
+characters in the password (`#` → `%23`, `&` → `%26`, `^` → `%5E`, `@` → `%40`)
+and keep the whole URL in single quotes so zsh leaves the `%` signs alone.
 
 ```sh
-export DATABASE_URL='postgresql://postgres.<ref>:<password>@...pooler.supabase.com:5432/postgres'
-pipeline/.venv/bin/firefinder db-load portugal
-pipeline/.venv/bin/firefinder score portugal 2026-07-20
-pipeline/.venv/bin/firefinder score portugal 2026-07-13
-pipeline/.venv/bin/firefinder score portugal 2025-08-11
+export DATABASE_URL='postgresql://postgres.<ref>:<encoded-password>@aws-0-<region>.pooler.supabase.com:5432/postgres'
+BIN=pipeline/.venv/bin/firefinder
+
+# Portugal: static data (cells, segments, fire events), then the score weeks.
+# db-load wipes and reloads the region INCLUDING its scores, so always rescore
+# every week after a db-load. score is an upsert, safe to re-run any time.
+$BIN db-load portugal
+$BIN score portugal 2026-07-20
+$BIN score portugal 2026-07-13
+$BIN score portugal 2025-08-11
+
+# Spain: same sequence
+$BIN db-load spain
+$BIN score spain 2026-07-20
+$BIN score spain 2026-07-13
+$BIN score spain 2025-08-11
+
+# France, once ./pipeline/scripts/run_france.sh has completed locally
+$BIN db-load france
+$BIN score france 2026-07-20
+$BIN score france 2026-07-13
+$BIN score france 2025-08-11
+
+# after the first load, a single daily command per region keeps the DB current
+# (fires + weather + current composite + rescore latest week); CI runs this too
+$BIN refresh portugal
+$BIN refresh spain
 ```
 
-Repeat `db-load` + `score` per region once its pipeline has run (spain, france).
+None of these duplicate data: `db-load` deletes the region's rows before
+reinserting, and `score`/`refresh` upsert on conflict.
 
 ## 2. Vercel
 
