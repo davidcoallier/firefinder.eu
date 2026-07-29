@@ -156,11 +156,20 @@ export default function App() {
     };
   }, [jurisdiction]);
 
-  // Load cells + segments whenever the selected week changes.
+  // Load cells + segments whenever the selected week changes. Cells stream in
+  // risk-descending pages; paint each page as it lands.
   useEffect(() => {
     if (!week) return;
     let cancelled = false;
-    Promise.all([fetchCells(regionId, week), fetchSegments(regionId, week)])
+    const onPage = (cellsSoFar: Cell[]) => {
+      if (cancelled) return;
+      setWeekData((prev) => ({
+        week,
+        cells: cellsSoFar,
+        segments: prev?.week === week ? prev.segments : null,
+      }));
+    };
+    Promise.all([fetchCells(regionId, week, onPage), fetchSegments(regionId, week)])
       .then(([cs, segs]) => {
         if (cancelled) return;
         setWeekData({ week, cells: cs, segments: segs });

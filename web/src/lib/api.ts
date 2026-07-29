@@ -10,13 +10,30 @@ export async function fetchWeeks(region: string): Promise<string[]> {
   return (data ?? []) as string[];
 }
 
-export async function fetchCells(region: string, week: string): Promise<Cell[]> {
-  const { data, error } = await supabase.rpc("api_cells", {
-    p_region: region,
-    p_week: week,
-  });
-  if (error) throw new Error(`api_cells failed: ${error.message}`);
-  return (data ?? []) as Cell[];
+const CELLS_PAGE = 25000;
+
+/** Cells arrive in pages ordered by risk descending; `onPage` fires after each
+ * page so the map can paint worst-first while the rest streams in. */
+export async function fetchCells(
+  region: string,
+  week: string,
+  onPage?: (cellsSoFar: Cell[]) => void
+): Promise<Cell[]> {
+  const all: Cell[] = [];
+  for (let offset = 0; ; offset += CELLS_PAGE) {
+    const { data, error } = await supabase.rpc("api_cells", {
+      p_region: region,
+      p_week: week,
+      p_limit: CELLS_PAGE,
+      p_offset: offset,
+    });
+    if (error) throw new Error(`api_cells failed: ${error.message}`);
+    const page = (data ?? []) as Cell[];
+    all.push(...page);
+    if (page.length > 0 && page.length === CELLS_PAGE) onPage?.([...all]);
+    if (page.length < CELLS_PAGE) break;
+  }
+  return all;
 }
 
 /** Per-cell SHAP drivers, fetched on demand when a cell is selected (the bulk

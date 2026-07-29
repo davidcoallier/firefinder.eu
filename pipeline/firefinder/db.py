@@ -88,7 +88,8 @@ def load_static(region: str):
         cur.execute("delete from fire_events where region_id = %s", (reg.id,))
         cur.executemany(
             """insert into fire_events (region_id, source, event_date, area_ha, geom)
-               values (%s, %s, %s, %s, st_geomfromtext(%s, 4326))""",
+               values (%s, %s, %s, %s,
+                       st_simplifypreservetopology(st_geomfromtext(%s, 4326), 0.0005))""",
             [
                 (
                     reg.id, r.source, r.event_date,
@@ -120,12 +121,12 @@ def write_cell_scores(region_id: str, week, rows, model_version: str):
     """rows: iterable of (h3, p_ignition, drivers_dict)."""
     with _conn() as conn, conn.cursor() as cur:
         cur.executemany(
-            """insert into cell_scores (h3, week, p_ignition, drivers, model_version)
-               values (%s, %s, %s, %s, %s)
+            """insert into cell_scores (h3, week, p_ignition, drivers, model_version, region_id)
+               values (%s, %s, %s, %s, %s, %s)
                on conflict (h3, week) do update
                  set p_ignition = excluded.p_ignition, drivers = excluded.drivers,
-                     model_version = excluded.model_version""",
-            [(h, week, float(p), json.dumps(d), model_version) for h, p, d in rows],
+                     model_version = excluded.model_version, region_id = excluded.region_id""",
+            [(h, week, float(p), json.dumps(d), model_version, region_id) for h, p, d in rows],
         )
 
 

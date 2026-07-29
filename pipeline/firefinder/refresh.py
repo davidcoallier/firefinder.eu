@@ -58,7 +58,8 @@ def run(region: str):
     with db._conn() as conn, conn.cursor() as cur:
         cur.executemany(
             """insert into fire_events (region_id, source, event_date, area_ha, geom)
-               values (%s, %s, %s, %s, st_geomfromtext(%s, 4326))""",
+               values (%s, %s, %s, %s,
+                       st_simplifypreservetopology(st_geomfromtext(%s, 4326), 0.0005))""",
             [
                 (
                     reg.id, r.source, r.event_date,
