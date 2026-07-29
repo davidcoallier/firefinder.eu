@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { Cell, FireCollection, SegmentCollection } from "./types";
+import type { Cell, Drivers, FireCollection, SegmentCollection } from "./types";
 
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
 
@@ -17,6 +17,17 @@ export async function fetchCells(region: string, week: string): Promise<Cell[]> 
   });
   if (error) throw new Error(`api_cells failed: ${error.message}`);
   return (data ?? []) as Cell[];
+}
+
+/** Per-cell SHAP drivers, fetched on demand when a cell is selected (the bulk
+ * cells payload ships without them for size). */
+export async function fetchCellDrivers(h3: string, week: string): Promise<Drivers> {
+  const { data, error } = await supabase.rpc("api_cell_drivers", {
+    p_h3: h3,
+    p_week: week,
+  });
+  if (error) throw new Error(`api_cell_drivers failed: ${error.message}`);
+  return (data ?? {}) as Drivers;
 }
 
 export async function fetchSegments(

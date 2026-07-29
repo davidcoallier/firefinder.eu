@@ -136,19 +136,64 @@ data/       Local raster/parquet store (gitignored; CI bootstraps from a release
 
 ## Running it locally
 
+One-time setup:
+
 ```sh
 # database (Supabase local, ports 55421-55429)
 npx supabase start
 
 # pipeline
-cd pipeline && python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/firefinder --help
-
-# full build for a region (hours; resumable, rerun after any failure)
-./pipeline/scripts/run_region.sh portugal
+cd pipeline && python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]" && cd ..
 
 # app
 cd web && pnpm install && pnpm dev
+```
+
+Full region builds (hours; resumable, rerun the same command after any
+failure). Each script ingests everything, builds features, trains, loads the
+DB, scores three weeks and exports the grid context layer:
+
+```sh
+caffeinate -i ./pipeline/scripts/run_portugal.sh
+caffeinate -i ./pipeline/scripts/run_spain.sh
+caffeinate -i ./pipeline/scripts/run_france.sh
+```
+
+The individual commands behind those scripts, using Portugal as the example
+(swap the region id for spain or france):
+
+```sh
+BIN=pipeline/.venv/bin/firefinder
+
+# ingestion (sentinel2 and weather are the long ones)
+$BIN ingest sentinel2 portugal 2020-04 2020-10   # one Apr-Oct span per year
+$BIN ingest weather  portugal
+$BIN ingest terrain  portugal
+$BIN ingest grid     portugal
+$BIN ingest fires    portugal
+
+# features, model, database
+$BIN features build portugal
+$BIN train portugal                              # writes pipeline/models/portugal/
+$BIN db-load portugal                            # regions, cells, segments, fires
+$BIN score portugal 2026-07-20                   # one week per call
+$BIN export-grid portugal                        # static context layer for the app
+
+# daily incremental refresh (what CI runs)
+$BIN refresh portugal
+```
+
+To run any of the DB-touching commands (`db-load`, `score`, `refresh`) against
+a hosted Supabase instead of the local stack, set `DATABASE_URL` first. Use the
+**session pooler** connection string from the Supabase dashboard (Connect →
+Session pooler), not the direct `db.<ref>.supabase.co` host: new Supabase
+projects resolve the direct host to IPv6 only, which fails on many networks.
+URL-encode any special characters in the password.
+
+```sh
+export DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres'
+$BIN db-load portugal
+$BIN score portugal 2026-07-20
 ```
 
 Deployment (hosted Supabase + Vercel + the Actions cron) is documented in

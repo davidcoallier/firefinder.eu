@@ -5,7 +5,7 @@ export interface Cell {
   h3: string;
   /** Ignition probability, 0-1. */
   p: number;
-  drivers: Drivers | null;
+  drivers?: Drivers | null;
 }
 
 /** Minimal GeoJSON typings for what the API returns. */

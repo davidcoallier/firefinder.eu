@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { fetchCells, fetchFires, fetchSegments, fetchWeeks } from "@/lib/api";
+import { fetchCellDrivers, fetchCells, fetchFires, fetchSegments, fetchWeeks } from "@/lib/api";
 import {
   getBasemapSnapshot,
   getServerBasemapSnapshot,
@@ -175,6 +175,28 @@ export default function App() {
       cancelled = true;
     };
   }, [regionId, week]);
+
+  // Cell drivers are not in the bulk payload; fetch them when a cell is picked.
+  useEffect(() => {
+    if (selection?.kind !== "cell" || selection.cell.drivers != null || !week) return;
+    let cancelled = false;
+    const h3 = selection.cell.h3;
+    fetchCellDrivers(h3, week)
+      .then((drivers) => {
+        if (cancelled) return;
+        setSelection((prev) =>
+          prev?.kind === "cell" && prev.cell.h3 === h3
+            ? { kind: "cell", cell: { ...prev.cell, drivers } }
+            : prev
+        );
+      })
+      .catch(() => {
+        /* panel just shows the score without the breakdown */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selection, week]);
 
   // Auto-dismiss the basemap toast.
   useEffect(() => {
