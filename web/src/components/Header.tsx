@@ -26,7 +26,7 @@ export default function Header({
           <span className="text-orange-600">fire</span>finder
         </h1>
         <p className="hidden truncate text-sm text-slate-500 lg:block">
-          Weekly wildfire ignition risk along power-grid corridors —{" "}
+          Weekly wildfire ignition risk along power-grid corridors:{" "}
           {jurisdiction.label}
         </p>
       </div>

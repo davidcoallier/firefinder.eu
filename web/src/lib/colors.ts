@@ -45,7 +45,7 @@ export const CORRIDOR_RISK_FLOOR = 0.35;
 
 /**
  * Corridor line color: below the floor, a thin neutral line so low-risk
- * corridors read as context — gray on the plain basemap, light on dark
+ * corridors read as context - gray on the plain basemap, light on dark
  * satellite imagery; above it, a colorblind-safer amber-yellow -> orange ->
  * crimson ramp that works on both.
  */
@@ -93,7 +93,7 @@ export function riskGradientCss(): string {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
-/** Map selection highlight: deep blue — distinct from the warm risk ramp and legible on a light basemap. */
+/** Map selection highlight: deep blue - distinct from the warm risk ramp and legible on a light basemap. */
 export const ACCENT_SELECT: [number, number, number, number] = [37, 99, 235, 255];
 
 /** Walk arbitrarily nested GeoJSON coordinates and accumulate a lon/lat bbox. */
@@ -133,7 +133,7 @@ export function formatPct(p: number): string {
 }
 
 export function formatLength(m: number | null): string {
-  if (m == null || !Number.isFinite(m)) return "—";
+  if (m == null || !Number.isFinite(m)) return "-";
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 

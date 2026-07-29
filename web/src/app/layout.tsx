@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Firefinder — wildfire risk on the power grid",
+  title: "Firefinder - wildfire risk on the power grid",
   description:
     "Weekly wildfire ignition risk forecasts along power-grid corridors.",
 };

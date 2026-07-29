@@ -3,7 +3,7 @@
 type EmptyStateProps = {
   jurisdictionLabel: string;
   /**
-   * Set when another jurisdiction already has published scores — the copy
+   * Set when another jurisdiction already has published scores - the copy
    * points users back to it instead of promising an imminent pipeline run.
    */
   liveJurisdictionLabel?: string;
@@ -33,13 +33,13 @@ export default function EmptyState({
         <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
           {liveJurisdictionLabel ? (
             <>
-              {`Scoring for ${jurisdictionLabel} hasn't launched yet — ${liveJurisdictionLabel} is live. Switch jurisdiction in the header above to see this week's risk map.`}
+              {`Scoring for ${jurisdictionLabel} hasn't launched yet. ${liveJurisdictionLabel} is live. Switch jurisdiction in the header above to see this week's risk map.`}
             </>
           ) : (
             <>
               Once the scoring pipeline finishes its first run for{" "}
               {jurisdictionLabel}, weekly risk maps will appear here
-              automatically — check back shortly.
+              automatically. Check back shortly.
             </>
           )}
         </p>

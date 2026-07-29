@@ -32,16 +32,16 @@ Import the GitHub repo in Vercel with:
 
 - **Root directory**: `web`
 - **Environment variables**:
-  - `NEXT_PUBLIC_SUPABASE_URL` — `https://<project-ref>.supabase.co`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — the anon/publishable key from the Supabase dashboard
+  - `NEXT_PUBLIC_SUPABASE_URL`: `https://<project-ref>.supabase.co`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: the anon/publishable key from the Supabase dashboard
 
-Nothing else — the app is read-only against the DB, live fires go through the
+Nothing else: the app is read-only against the DB, live fires go through the
 app's own `/api/live-fires` route, and the grid context layers are static files
 in `web/public/basemap/` that deploy with the app.
 
 ## 3. Daily refresh (GitHub Actions)
 
-The workflow is `.github/workflows/refresh.yml` — daily at 05:00 UTC plus a
+The workflow is `.github/workflows/refresh.yml`: daily at 05:00 UTC plus a
 manual "Run workflow" button. Per run and region it: refetches fire labels,
 appends missing weather days, rebuilds the current month's satellite composite,
 rebuilds features, scores the latest complete week, and writes to the DB.
@@ -58,8 +58,8 @@ gh secret set DATABASE_URL
 ```
 
 Historical data then persists between runs in the Actions cache; the release
-seed is only used when the cache is cold (first run, or after ~a week of
-failed/no runs — cache entries expire after 7 days of no access).
+seed is only used when the cache is cold (first run, or after about a week of
+failed or missing runs; cache entries expire after 7 days of no access).
 
 ### Adding a region to the schedule
 
@@ -71,7 +71,7 @@ failed/no runs — cache entries expire after 7 days of no access).
 5. Commit the model that the pipeline wrote to `pipeline/models/spain/`
 
 Watch the first scheduled run in the Actions tab. Known risk at Spain/France
-scale: the feature rebuild is ~20M rows and standard runners have 7GB RAM — if
+scale: the feature rebuild is ~20M rows and standard runners have 7GB RAM: if
 a run OOMs, move that region to a larger runner
 (`runs-on: ubuntu-latest-4-cores` on a paid plan) or ping Claude to chunk the
 rebuild further.
@@ -90,6 +90,6 @@ git add pipeline/models/<region> && git commit -m "Retrain <region>"
 ## Rotating / revoking
 
 - DB password: rotate in Supabase dashboard → update the `DATABASE_URL` secret
-  (GitHub) — Vercel only holds the anon key, which is safe to expose.
+  (GitHub): Vercel only holds the anon key, which is safe to expose.
 - All upstream data sources are keyless (Earth Search, EFFIS, Open-Meteo,
-  NASA POWER, FIRMS public CSVs, Geofabrik) — nothing to rotate there.
+  NASA POWER, FIRMS public CSVs, Geofabrik): nothing to rotate there.

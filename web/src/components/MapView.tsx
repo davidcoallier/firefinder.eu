@@ -106,7 +106,7 @@ function getTooltip(
   if (isLiveFireFeature(obj)) {
     const p = obj.properties;
     return {
-      text: `Active fire — detected ${p.acq_date} ${p.acq_time}`,
+      text: `Active fire detected ${p.acq_date} ${p.acq_time}`,
       style: TOOLTIP_STYLE,
     };
   }
@@ -114,7 +114,7 @@ function getTooltip(
     const p = obj.properties;
     const where = p.locality ? `Near ${p.locality}` : `Corridor #${p.rank}`;
     return {
-      text: `${where} — ${riskTier(p.risk).label} risk (${formatPct(p.risk)})`,
+      text: `${where}: ${riskTier(p.risk).label} risk (${formatPct(p.risk)})`,
       style: TOOLTIP_STYLE,
     };
   }

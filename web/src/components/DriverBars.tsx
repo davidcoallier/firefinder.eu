@@ -4,7 +4,7 @@ import { rankDrivers } from "@/lib/drivers";
 import type { Drivers } from "@/lib/types";
 
 /**
- * Simple mode: just the plain-language phrase plus a magnitude bar —
+ * Simple mode: just the plain-language phrase plus a magnitude bar -
  * no feature keys, no numbers (those live in advanced mode).
  */
 export function SimpleDriverBars({ drivers }: { drivers: Drivers }) {

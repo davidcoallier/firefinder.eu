@@ -155,8 +155,9 @@ export default function SidePanel({
               This week&apos;s highest-risk power line corridors
             </h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              The {top.length} highest-risk corridors this week. Click one
-              to inspect it on the map.
+              {loading
+                ? "Ranking this week's corridors…"
+                : `The ${top.length} highest-risk corridors this week. Click one to inspect it on the map.`}
             </p>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">

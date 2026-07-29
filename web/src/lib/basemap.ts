@@ -5,7 +5,7 @@ import type { StyleSpecification } from "maplibre-gl";
  * CDN-hosted styles that ad-blockers may break):
  *
  * - "satellite": Esri World Imagery raster tiles (default).
- * - "plain": fully offline — background ocean + local countries.geojson.
+ * - "plain": fully offline - background ocean + local countries.geojson.
  */
 export type BasemapMode = "satellite" | "plain";
 
@@ -59,7 +59,7 @@ export function setBasemapMode(
     try {
       window.localStorage.setItem(BASEMAP_STORAGE_KEY, mode);
     } catch {
-      /* private mode / storage disabled — preference just won't persist */
+      /* private mode / storage disabled - preference just won't persist */
     }
   }
   for (const listener of basemapListeners) listener();
@@ -92,7 +92,7 @@ function coverageGeoJson(
  *
  * When `coverageBbox` is given, a dashed outline of the monitored-coverage
  * area is baked into the style. Callers switch modes / jurisdictions with
- * `map.setStyle(buildMapStyle(...))` — maplibre's default style-diffing turns
+ * `map.setStyle(buildMapStyle(...))` - maplibre's default style-diffing turns
  * a coverage-only change into a cheap add/remove of that one source + layer.
  */
 export function buildMapStyle(

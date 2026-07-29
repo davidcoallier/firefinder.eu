@@ -2,7 +2,7 @@
  * A jurisdiction is a country-level entry in the selector. Each maps to a
  * data-region id used by the scoring pipeline's API (api_weeks / api_cells /
  * api_segments / api_fires). A jurisdiction may be live before scoring covers
- * the whole country — `coverageBbox` marks the monitored area inside it.
+ * the whole country - `coverageBbox` marks the monitored area inside it.
  */
 export type Jurisdiction = {
   id: string;

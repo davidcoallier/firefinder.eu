@@ -84,7 +84,7 @@ export default function App() {
   );
   const [liveFires, setLiveFires] = useState<LiveFireCollection | null>(null);
   const [liveFire, setLiveFire] = useState<LiveFireFeature | null>(null);
-  // Full grid network (static asset) — gray context under the ranked corridors.
+  // Full grid network (static asset) - gray context under the ranked corridors.
   const [gridContext, setGridContext] = useState<GeoJSON.FeatureCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -230,7 +230,7 @@ export default function App() {
     if (getBasemapSnapshot() !== "satellite") return;
     setBasemapMode("plain", { persist: false });
     setToast(
-      "Satellite imagery couldn't load (possibly blocked by an extension) — switched to the plain map."
+      "Satellite imagery couldn't load (possibly blocked by an extension), switched to the plain map."
     );
   }, []);
 

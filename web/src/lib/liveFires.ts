@@ -46,7 +46,7 @@ export function setLiveFiresEnabled(on: boolean): void {
   try {
     window.localStorage.setItem(LIVE_FIRES_STORAGE_KEY, on ? "on" : "off");
   } catch {
-    /* private mode / storage disabled — preference just won't persist */
+    /* private mode / storage disabled - preference just won't persist */
   }
   for (const listener of listeners) listener();
 }

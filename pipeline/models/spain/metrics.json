@@ -1,0 +1,79 @@
+{
+  "test_from_year": 2024,
+  "n_train": 9663631,
+  "n_test": 6871089,
+  "pos_train": 1890,
+  "pos_test": 2602,
+  "base_rate_test": 0.000379,
+  "pr_auc": 0.0099,
+  "roc_auc": 0.8584,
+  "calibration": [
+    {
+      "mean_pred": 0.0008,
+      "frac_fire": 1e-05,
+      "n": 687110
+    },
+    {
+      "mean_pred": 0.00306,
+      "frac_fire": 2e-05,
+      "n": 687108
+    },
+    {
+      "mean_pred": 0.00713,
+      "frac_fire": 5e-05,
+      "n": 687109
+    },
+    {
+      "mean_pred": 0.01388,
+      "frac_fire": 8e-05,
+      "n": 687109
+    },
+    {
+      "mean_pred": 0.0248,
+      "frac_fire": 8e-05,
+      "n": 687109
+    },
+    {
+      "mean_pred": 0.04284,
+      "frac_fire": 0.00014,
+      "n": 687108
+    },
+    {
+      "mean_pred": 0.07407,
+      "frac_fire": 0.00023,
+      "n": 687109
+    },
+    {
+      "mean_pred": 0.13178,
+      "frac_fire": 0.00035,
+      "n": 687109
+    },
+    {
+      "mean_pred": 0.25053,
+      "frac_fire": 0.00065,
+      "n": 687109
+    },
+    {
+      "mean_pred": 0.55492,
+      "frac_fire": 0.00218,
+      "n": 687109
+    }
+  ],
+  "by_year": {
+    "2024": {
+      "pr_auc": 0.004,
+      "roc_auc": 0.8663,
+      "positives": 395
+    },
+    "2025": {
+      "pr_auc": 0.0197,
+      "roc_auc": 0.8645,
+      "positives": 1370
+    },
+    "2026": {
+      "pr_auc": 0.0098,
+      "roc_auc": 0.8073,
+      "positives": 837
+    }
+  }
+}
