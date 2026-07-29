@@ -30,3 +30,6 @@ supabase/.temp/
 
 # os
 .DS_Store
+
+# CI seed tarballs live on the seed-data release, never in git
+seed-*.tar.gz
