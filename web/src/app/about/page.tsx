@@ -174,9 +174,10 @@ export default function AboutPage() {
           </p>
           <p>
             Some honest numbers. Ignition in any given cell in any given week
-            is rare: about 1 in 700 to 1 in 2,600 depending on the country. The
-            model ranks risk well (ROC-AUC of 0.85 for Portugal and 0.86 for
-            Spain, measured on held-out years it never saw during training),
+            is rare: between roughly 1 in 700 and 1 in 12,000 depending on the
+            country. The model ranks risk well (ROC-AUC of 0.85 for Portugal,
+            0.86 for Spain and 0.90 for France, measured on held-out years it
+            never saw during training),
             but absolute probabilities at base rates this low are hard. That is
             why the app talks in tiers (Severe, High, and so on) rather than
             pretending to a precision the data cannot support.
