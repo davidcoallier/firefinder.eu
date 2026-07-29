@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        region: [portugal, spain, france] # add france after seeding its data (see scripts/pack_seed.sh)
+        region: [portugal, spain, france]
     steps:
       - uses: actions/checkout@v4
 

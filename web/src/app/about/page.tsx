@@ -90,7 +90,7 @@ export default function AboutPage() {
         <div className="mt-3 space-y-3">
           <p>
             Firefinder shows weekly wildfire ignition risk along power-grid
-            corridors for Portugal and Spain, with France coming next. The
+            corridors for Portugal, Spain and France. The
             country is divided into hexagons of roughly 5 km&sup2;, and every
             week each hexagon gets a probability that a fire starts there,
             computed from satellite imagery, weather, terrain and land cover.

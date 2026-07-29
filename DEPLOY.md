@@ -38,7 +38,7 @@ $BIN score spain 2026-07-20
 $BIN score spain 2026-07-13
 $BIN score spain 2025-08-11
 
-# France, once ./pipeline/scripts/run_france.sh has completed locally
+# France: same sequence
 $BIN db-load france
 $BIN score france 2026-07-20
 $BIN score france 2026-07-13
