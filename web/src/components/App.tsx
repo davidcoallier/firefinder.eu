@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { fetchCells, fetchFires, fetchSegments, fetchWeeks } from "@/lib/api";
 import {
@@ -324,6 +325,17 @@ export default function App() {
                 onClearSelection={() => setSelection(null)}
               />
             </div>
+            {mode === "simple" && (
+              <p className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
+                Open data and open source.{" "}
+                <Link
+                  href="/about"
+                  className="font-medium text-orange-700 hover:text-orange-800"
+                >
+                  About the data &rarr;
+                </Link>
+              </p>
+            )}
           </aside>
         )}
 

@@ -20,9 +20,8 @@ line corridor in the national grid, ranked, and explained in plain language.
   toggleable overlay, with per-detection fire power, satellite and confidence.
 
 Current coverage: **Portugal and Spain** (live), France (pipeline ready, same
-config-driven machinery). California is planned. It adds public utility
-ignition reports (CPUC) and outage history (EAGLE-I) that have no European
-public equivalent.
+config-driven machinery). Adding a region is ~30 lines of config plus one
+pipeline run.
 
 ## How it works
 
@@ -113,9 +112,8 @@ nationally per week, and each carries the SHAP drivers of its riskiest cell.
 forecast; a production system would swap in NWP forecasts, and backtests are
 unaffected. EFFIS labels are MODIS-derived and miss some small fires. Risk is
 wildfire ignition risk *near* corridors, not a prediction that a power line
-causes ignition. Europe has no public equivalent of California's CPUC
-equipment-ignition reports, which is exactly what the planned California phase
-adds.
+causes ignition; no public European dataset attributes ignitions to grid
+equipment, so that distinction is beyond what open data can support.
 
 ## Refresh cadence
 
@@ -158,8 +156,6 @@ Deployment (hosted Supabase + Vercel + the Actions cron) is documented in
 
 ## Roadmap
 
-- Spain and France scoring (pipeline ready; a region is ~30 lines of config)
-- California: CPUC utility ignition reports + EAGLE-I outage history for a true
-  utility-crisis layer, CAL FIRE perimeters as labels
+- France scoring (pipeline ready; a region is ~30 lines of config)
 - NWP forecast weather in place of observed weather for true forward scoring
 - Deep spatiotemporal model vs the XGBoost baseline, honestly compared

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Jurisdiction } from "@/lib/regions";
 
 export type Mode = "simple" | "advanced";
@@ -69,6 +70,13 @@ export default function Header({
             </button>
           ))}
         </div>
+
+        <Link
+          href="/about"
+          className="hidden px-1 text-sm text-slate-500 transition-colors hover:text-slate-800 sm:block"
+        >
+          About the data
+        </Link>
       </div>
     </header>
   );
