@@ -60,9 +60,13 @@ export default function AboutPage() {
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:px-6">
           <Link
             href="/"
-            className="text-lg font-semibold tracking-tight text-slate-900"
+            className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900"
           >
-            <span className="text-orange-600">fire</span>finder
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="" className="h-8 w-8 shrink-0" />
+            <span>
+              <span className="text-orange-600">fire</span>finder
+            </span>
           </Link>
           <Link
             href="/"

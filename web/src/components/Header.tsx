@@ -22,9 +22,13 @@ export default function Header({
 }: HeaderProps) {
   return (
     <header className="z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4">
-      <div className="flex min-w-0 items-baseline gap-3">
-        <h1 className="text-lg font-semibold tracking-tight text-slate-900">
-          <span className="text-orange-600">fire</span>finder
+      <div className="flex min-w-0 items-center gap-3">
+        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" className="h-8 w-8 shrink-0" />
+          <span>
+            <span className="text-orange-600">fire</span>finder
+          </span>
         </h1>
         <p className="hidden truncate text-sm text-slate-500 lg:block">
           Weekly wildfire ignition risk along power-grid corridors:{" "}
