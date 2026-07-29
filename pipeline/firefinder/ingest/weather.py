@@ -108,6 +108,71 @@ def _fetch_point_power(pt) -> pd.DataFrame:
     r.raise_for_status()
 
 
+def update(region: str, overlap_days: int = 3):
+    """Incremental daily refresh: append days since the last stored date.
+
+    A few days of overlap are refetched and deduped because the most recent
+    ERA5 values are preliminary. Falls back to a full run() if there is no
+    existing parquet.
+    """
+    reg = regions.get(region)
+    out_path = DATA_DIR / "processed" / reg.id / "weather.parquet"
+    if not out_path.exists():
+        run(region)
+        return
+    existing = pd.read_parquet(out_path)
+    start = (pd.Timestamp(existing["date"].max()) - pd.Timedelta(days=overlap_days)).strftime("%Y-%m-%d")
+    end = (pd.Timestamp.utcnow().tz_localize(None).normalize() - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    if start >= end:
+        print("weather already current")
+        return
+    points = grid_points(reg)
+    frames = []
+    for i in range(0, len(points), BATCH):
+        batch = points[i : i + BATCH]
+        try:
+            locs = _fetch_batch(batch, start, end)
+        except QuotaExceeded:
+            frames = [_fetch_point_power_range(pt, start, end) for pt in points]
+            break
+        for pt, loc in zip(batch, locs):
+            frames.append(_parse_openmeteo(pt, loc))
+    fresh = pd.concat(frames, ignore_index=True)
+    merged = pd.concat([existing[existing["date"] < fresh["date"].min()], fresh], ignore_index=True)
+    merged.to_parquet(out_path, index=False)
+    print(f"appended {fresh['date'].nunique()} days -> {out_path.name} ({len(merged)} rows)")
+
+
+def _parse_openmeteo(pt, loc) -> pd.DataFrame:
+    daily = pd.DataFrame(loc["daily"])
+    daily["date"] = pd.to_datetime(daily["time"]).dt.date
+    rh = pd.DataFrame(loc["hourly"])
+    rh["date"] = pd.to_datetime(rh["time"]).dt.date
+    rh_min = rh.groupby("date")["relative_humidity_2m"].min().rename("rh_min")
+    df = daily.drop(columns="time").merge(rh_min, on="date")
+    df = df.rename(
+        columns={
+            "temperature_2m_max": "tmax",
+            "precipitation_sum": "precip",
+            "wind_speed_10m_max": "wind_max",
+            "wind_gusts_10m_max": "gust_max",
+            "et0_fao_evapotranspiration": "et0",
+        }
+    )
+    df["lat"], df["lon"] = pt
+    return df
+
+
+def _fetch_point_power_range(pt, start, end) -> pd.DataFrame:
+    global START, END
+    old = (START, END)
+    try:
+        START, END = start, end
+        return _fetch_point_power(pt)
+    finally:
+        START, END = old
+
+
 def run(region: str):
     reg = regions.get(region)
     out_path = DATA_DIR / "processed" / reg.id / "weather.parquet"
@@ -151,23 +216,7 @@ def _run_openmeteo(points, interim):
         batch_frames = []
         for start, end in _year_chunks():
             for pt, loc in zip(batch, _fetch_batch(batch, start, end)):
-                daily = pd.DataFrame(loc["daily"])
-                daily["date"] = pd.to_datetime(daily["time"]).dt.date
-                rh = pd.DataFrame(loc["hourly"])
-                rh["date"] = pd.to_datetime(rh["time"]).dt.date
-                rh_min = rh.groupby("date")["relative_humidity_2m"].min().rename("rh_min")
-                df = daily.drop(columns="time").merge(rh_min, on="date")
-                df = df.rename(
-                    columns={
-                        "temperature_2m_max": "tmax",
-                        "precipitation_sum": "precip",
-                        "wind_speed_10m_max": "wind_max",
-                        "wind_gusts_10m_max": "gust_max",
-                        "et0_fao_evapotranspiration": "et0",
-                    }
-                )
-                df["lat"], df["lon"] = pt
-                batch_frames.append(df)
+                batch_frames.append(_parse_openmeteo(pt, loc))
             time.sleep(0.4)
         combined = pd.concat(batch_frames, ignore_index=True)
         combined.to_parquet(cache, index=False)

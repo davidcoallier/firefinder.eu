@@ -14,7 +14,7 @@ import xgboost as xgb
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from firefinder import regions
-from firefinder.config import DATA_DIR
+from firefinder.config import DATA_DIR, REPO_ROOT
 
 FEATURES = [
     "ndvi_mean", "ndvi_p10", "ndmi_mean", "ndvi_anom",
@@ -79,8 +79,9 @@ def run(region: str, test_year: int = 2024):
             "positives": int(gdf["fire"].sum()),
         }
 
-    model_dir = proc_dir / "model"
-    model_dir.mkdir(exist_ok=True)
+    # models live in the repo (small json), so CI scoring runs don't retrain
+    model_dir = REPO_ROOT / "pipeline" / "models" / reg.id
+    model_dir.mkdir(parents=True, exist_ok=True)
     # refit on everything for the live model
     full = _fit(df[FEATURES], df["fire"])
     full.save_model(model_dir / "model_full.json")

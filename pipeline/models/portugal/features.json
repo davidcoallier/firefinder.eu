@@ -1,0 +1,1 @@
+["ndvi_mean", "ndvi_p10", "ndmi_mean", "ndvi_anom", "tmax", "rh_min", "wind_max", "gust_max", "precip_sum", "et0_sum", "precip_30d", "precip_90d", "elevation_m", "slope_deg", "tree_frac", "shrub_frac", "grass_frac", "crop_frac", "dist_powerline_m", "week_sin", "week_cos"]

@@ -67,6 +67,14 @@ def features_build(region: str):
     build.run(region=region)
 
 
+@app.command()
+def refresh(region: str):
+    """Daily incremental refresh: recent weather + current composite + rescore."""
+    from firefinder import refresh as refresh_mod
+
+    refresh_mod.run(region)
+
+
 @app.command("export-grid")
 def export_grid(region: str):
     """Export the full grid network as a static geojson context layer for the web app."""

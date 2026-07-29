@@ -12,7 +12,7 @@ import xgboost as xgb
 from shapely.geometry import Point
 
 from firefinder import db, regions
-from firefinder.config import DATA_DIR
+from firefinder.config import DATA_DIR, REPO_ROOT
 
 BUFFER_M = 500
 TOP_DRIVERS = 6
@@ -28,7 +28,7 @@ def _load_model(model_dir):
 def run(region: str, week: str):
     reg = regions.get(region)
     proc_dir = DATA_DIR / "processed" / reg.id
-    model, features = _load_model(proc_dir / "model")
+    model, features = _load_model(REPO_ROOT / "pipeline" / "models" / reg.id)
     version = "xgb-" + pd.Timestamp.now().strftime("%Y%m%d")
 
     df = pd.read_parquet(proc_dir / "features.parquet")

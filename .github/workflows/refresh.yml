@@ -1,0 +1,55 @@
+name: refresh
+
+on:
+  schedule:
+    - cron: "0 5 * * *" # daily 05:00 UTC, after the previous day's data lands
+  workflow_dispatch: {}
+
+concurrency: refresh
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [portugal] # add spain, france after seeding their data (see scripts/pack_seed.sh)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Restore data
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: data-${{ matrix.region }}-${{ github.run_id }}
+          restore-keys: data-${{ matrix.region }}-
+
+      - name: Seed data from release (first run only)
+        if: steps.cache.outputs.cache-matched-key == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download seed-data --pattern "seed-${{ matrix.region }}.tar.gz"
+          tar xzf seed-${{ matrix.region }}.tar.gz
+          rm seed-${{ matrix.region }}.tar.gz
+
+      - name: Install pipeline
+        run: pip install -e "./pipeline"
+
+      - name: Refresh ${{ matrix.region }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: firefinder refresh ${{ matrix.region }}
+
+      - name: Save data
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: data-${{ matrix.region }}-${{ github.run_id }}
