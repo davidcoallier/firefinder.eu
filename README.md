@@ -19,9 +19,8 @@ line corridor in the national grid, ranked, and explained in plain language.
 - **Live fires**: NASA FIRMS satellite detections from the last 24 hours as a
   toggleable overlay, with per-detection fire power, satellite and confidence.
 
-Current coverage: **Portugal and Spain** (live), France (pipeline ready, same
-config-driven machinery). Adding a region is ~30 lines of config plus one
-pipeline run.
+Current coverage: **Portugal, Spain and France**, all live with daily score
+refreshes. Adding a region is ~30 lines of config plus one pipeline run.
 
 ## How it works
 
@@ -101,7 +100,9 @@ with each model in `pipeline/models/<region>/metrics.json`. After evaluation
 the model is refit on all data for live scoring.
 
 Spain (16.5M cell-weeks, base rate 0.04%): held-out ROC-AUC **0.86**, PR-AUC
-0.0099, roughly 26x lift over random, consistent across 2024-2026.
+0.0099, roughly 26x lift over random, consistent across 2024-2026. France
+(19.1M cell-weeks, base rate 0.008%): held-out ROC-AUC **0.90**, PR-AUC 0.0021,
+roughly 26x lift over an even rarer event.
 
 **Corridor scoring.** Cells within 500 m of a line segment contribute to that
 corridor: `risk = 0.65 * max(p) + 0.35 * mean(p)`. A corridor through one
@@ -201,6 +202,5 @@ Deployment (hosted Supabase + Vercel + the Actions cron) is documented in
 
 ## Roadmap
 
-- France scoring (pipeline ready; a region is ~30 lines of config)
 - NWP forecast weather in place of observed weather for true forward scoring
 - Deep spatiotemporal model vs the XGBoost baseline, honestly compared
