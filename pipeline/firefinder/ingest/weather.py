@@ -55,8 +55,14 @@ def _fetch_batch(points, start, end):
         "hourly": "relative_humidity_2m",
         "timezone": "UTC",
     }
-    for attempt in range(8):
-        r = requests.get(API, params=params, timeout=300)
+    for attempt in range(6):
+        try:
+            r = requests.get(API, params=params, timeout=(10, 120))
+        except requests.RequestException:
+            # CI runner IPs get tarpitted by Open-Meteo; treat transport
+            # failures like rate limits and let the caller fall back to POWER
+            time.sleep(2**attempt)
+            continue
         if r.status_code == 200:
             body = r.json()
             return body if isinstance(body, list) else [body]
@@ -64,10 +70,8 @@ def _fetch_batch(points, start, end):
             raise QuotaExceeded(r.text[:200])
         # minutely rate limit needs a real pause, not exponential-from-1s
         time.sleep(70 if r.status_code == 429 else 2**attempt)
-    if r.status_code == 429:
-        # hourly/other quota that outlasted every retry — same remedy as daily
-        raise QuotaExceeded(r.text[:200])
-    r.raise_for_status()
+    # timeouts or quota that outlasted every retry: same remedy either way
+    raise QuotaExceeded("open-meteo unreachable or rate-limited after retries")
 
 
 def _fetch_point_power(pt) -> pd.DataFrame:
@@ -87,7 +91,11 @@ def _fetch_point_power(pt) -> pd.DataFrame:
         "format": "JSON",
     }
     for attempt in range(6):
-        r = requests.get(POWER_API, params=params, timeout=300)
+        try:
+            r = requests.get(POWER_API, params=params, timeout=(10, 180))
+        except requests.RequestException:
+            time.sleep(3 * 2**attempt)
+            continue
         if r.status_code == 200:
             p = r.json()["properties"]["parameter"]
             df = pd.DataFrame(
