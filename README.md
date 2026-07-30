@@ -126,6 +126,23 @@ equipment, so that distinction is beyond what open data can support.
 | Grid geometry, terrain, land cover | Static | Re-ingest on demand |
 | Model retraining | Manual, after each season | `firefinder train <region>`, model committed to the repo |
 
+### When upstream fails
+
+The daily job depends on several free public services, and every one of them
+has been down, throttled, or quota-limited at some point. The refresh is built
+to degrade rather than die:
+
+| Dependency | On failure |
+|---|---|
+| EFFIS fire perimeters | 3 retry rounds across two mirrors with 30-60s backoff. Still down: keep the previous day's labels (they barely move in 24h), log it, and continue to scoring. Writes are atomic (temp file + rename), so a crash mid-fetch never corrupts the label store. |
+| Open-Meteo weather | Retries with backoff; a 429 quota response or a transport timeout that outlasts retries switches the whole region to NASA POWER for that run. One provider per region per dataset, never mixed. |
+| Sentinel-2 scenes | A scene that fails to read (or arrives without georeferencing) is skipped; the monthly composite is built from the scenes that worked. |
+| Overpass (OSM) | Rate-limited almost always: falls back to parsing the Geofabrik country extract locally. Grid ingest only, not part of the daily job. |
+| Actions cache | Cold cache (first run, or expired after 7 days without runs) bootstraps from the `seed-data` GitHub release. The cache is saved even when a run fails, and the feature build tolerates a missing labels file, so a failed run cannot poison the next one. |
+
+Scoring is the priority: the job only hard-fails when the data needed to score
+the current week genuinely cannot be produced.
+
 ## Repository layout
 
 ```
