@@ -16,11 +16,16 @@ def run(region: str):
     proc_dir = DATA_DIR / "processed" / reg.id
     today = pd.Timestamp.utcnow().tz_localize(None).normalize()
 
-    # 1. fire labels: full refetch, it's one fast WFS call
-    (proc_dir / "fires.parquet").unlink(missing_ok=True)
+    # 1. fire labels: refetch, but never at the cost of the scoring run.
+    #    On failure keep yesterday's parquet; labels barely move day to day.
     from firefinder.ingest import fires
 
-    fires.run(region)
+    fires_fresh = True
+    try:
+        fires.run(region, force=True)
+    except Exception as err:
+        fires_fresh = False
+        print(f"fire label refetch failed, keeping previous labels: {err}")
 
     # 2. weather: append missing days
     from firefinder.ingest import weather
@@ -50,6 +55,9 @@ def run(region: str):
     score.run(region, latest.strftime("%Y-%m-%d"))
 
     # 5. keep fire_events current in the DB (cells/segments are static)
+    if not fires_fresh:
+        print(f"refresh done: {reg.id}, scored week {latest.date()} (fires kept from previous run)")
+        return
     with db._conn() as conn, conn.cursor() as cur:
         cur.execute("delete from fire_events where region_id = %s", (reg.id,))
     import geopandas as gpd

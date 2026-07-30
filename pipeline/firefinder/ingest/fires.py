@@ -1,5 +1,7 @@
 """Fire labels from EFFIS burnt-area perimeters (MODIS-derived, EU-wide, no auth)."""
 
+import time
+
 import geopandas as gpd
 import pandas as pd
 import requests
@@ -28,21 +30,23 @@ def fetch(region) -> gpd.GeoDataFrame:
         "maxFeatures": "200000",
     }
     last_err = None
-    for host in WFS_HOSTS:
-        try:
-            r = requests.get(host, params=params, timeout=120)
-            r.raise_for_status()
-            gdf = gpd.GeoDataFrame.from_features(r.json()["features"], crs="EPSG:4326")
-            if len(gdf):
-                return gdf
-        except Exception as err:  # try next mirror
-            last_err = err
+    for attempt in range(3):
+        for host in WFS_HOSTS:
+            try:
+                r = requests.get(host, params=params, timeout=120)
+                r.raise_for_status()
+                gdf = gpd.GeoDataFrame.from_features(r.json()["features"], crs="EPSG:4326")
+                if len(gdf):
+                    return gdf
+            except Exception as err:  # try next mirror
+                last_err = err
+        time.sleep(30 * (attempt + 1))
     raise RuntimeError(f"EFFIS WFS failed on all mirrors: {last_err}")
 
 
-def run(region: str):
+def run(region: str, force: bool = False):
     reg = regions.get(region)
-    if (DATA_DIR / "processed" / reg.id / "fires.parquet").exists():
+    if not force and (DATA_DIR / "processed" / reg.id / "fires.parquet").exists():
         print("fires.parquet exists, skipping")
         return
     gdf = fetch(reg)
@@ -61,5 +65,7 @@ def run(region: str):
     out = out[out.geometry.is_valid & ~out.geometry.is_empty & out["event_date"].notna()]
     out_dir = DATA_DIR / "processed" / reg.id
     out_dir.mkdir(parents=True, exist_ok=True)
-    out.to_parquet(out_dir / "fires.parquet")
+    tmp = out_dir / "fires.parquet.tmp"
+    out.to_parquet(tmp)
+    tmp.rename(out_dir / "fires.parquet")
     print(f"{len(out)} fire perimeters, {out['event_date'].min()} .. {out['event_date'].max()}")
