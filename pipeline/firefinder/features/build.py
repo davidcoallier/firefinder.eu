@@ -109,7 +109,13 @@ def run(region: str):
 
     weekly = _weekly_weather(proc_dir)
     veg = _veg(proc_dir)
-    labels = _labels(proc_dir)
+    # Labels only matter for training; a scoring-only refresh can proceed
+    # without them if the EFFIS refetch failed and no previous file survives.
+    if (proc_dir / "fires.parquet").exists():
+        labels = _labels(proc_dir)
+    else:
+        print("fires.parquet missing, building features with empty labels")
+        labels = None
 
     # nearest weather point per cell
     pts = weekly[["point", "lat", "lon"]].drop_duplicates()
@@ -143,8 +149,11 @@ def run(region: str):
             veg_y,
             on="week", by="h3", direction="backward", allow_exact_matches=False,
         )
-        df = df.merge(labels, on=["h3", "week"], how="left")
-        df["fire"] = df["fire"].fillna(0).astype("int8")
+        if labels is not None:
+            df = df.merge(labels, on=["h3", "week"], how="left")
+            df["fire"] = df["fire"].fillna(0).astype("int8")
+        else:
+            df["fire"] = np.int8(0)
         woy = df["week"].dt.isocalendar().week.astype(float)
         df["week_sin"] = np.sin(2 * np.pi * woy / 52)
         df["week_cos"] = np.cos(2 * np.pi * woy / 52)
