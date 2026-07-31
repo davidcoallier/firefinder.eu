@@ -40,11 +40,12 @@ with weekly per-cell base rates between $1.5\times10^{-3}$ and
 $8.1\times10^{-5}$; we therefore evaluate exclusively on strict temporal
 holdouts using ranking metrics, and convert scores to usable likelihoods with
 isotonic calibration. A seed-diverse gradient-boosted ensemble improves
-holdout PR-AUC by 29\% over a single model in a Portugal ablation
-(0.0174 vs.\ 0.0135, an 11.6$\times$ lift over the base rate) while ROC-AUC
-across the three countries ranges from 0.84 to 0.90. A pairwise ranking
-objective improves ROC-AUC but degrades top-of-list precision, and we discuss
-why calibrated classification remains preferable for corridor triage. Member
+holdout PR-AUC in Portugal (+29\%) and France (+61\%) while degrading it in Spain, a
+region-dependence we report rather than average away; ROC-AUC across the
+three countries ranges from 0.84 to 0.91. A pairwise ranking
+objective wins on ROC-AUC in two regions but never on top-of-list precision,
+and we discuss why calibrated classification remains preferable for corridor
+triage. Member
 disagreement provides a per-cell uncertainty signal at no additional cost. The
 full system, including the daily refresh pipeline and the web application, is
 open source at \url{https://github.com/davidcoallier/firefinder.eu} and
@@ -261,26 +262,24 @@ prediction \citep{jiang2026eapo} in the gradient-boosted setting.
 \label{sec:experiments}
 
 \paragraph{Setup.} All models train on fire seasons through 2023 and are
-evaluated on 2024--2026 (partial 2026). The ensemble ablation is run on
-Portugal; Spain and France results use the production single-model
-configuration current at time of writing. We report PR-AUC (average
+evaluated on 2024--2026 (partial 2026). The single/ensemble/ranker ablation
+is run identically in all three regions. We report PR-AUC (average
 precision) and ROC-AUC; PR-AUC should be read against each region's base
 rate, and we report the ratio as lift.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Held-out performance (2024--2026). Lift is PR-AUC divided by the
-test base rate. Portugal uses the $K{=}5$ calibrated ensemble; Spain and
-France use the single-model configuration.}
+\caption{Held-out performance of the deployed $K{=}5$ calibrated ensembles
+(2024--2026). Lift is PR-AUC divided by the test base rate.}
 \label{tab:main}
 \begin{tabular}{lrrrr}
 \toprule
 Region & PR-AUC & ROC-AUC & Base rate & Lift \\
 \midrule
-Portugal (ensemble) & 0.0174 & 0.844 & $1.50\times10^{-3}$ & 11.6$\times$ \\
-Spain & 0.0099 & 0.858 & $3.79\times10^{-4}$ & 26.1$\times$ \\
-France & 0.0021 & 0.902 & $8.1\times10^{-5}$ & 25.9$\times$ \\
+Portugal & 0.0174 & 0.844 & $1.50\times10^{-3}$ & 11.6$\times$ \\
+Spain & 0.0108 & 0.861 & $3.79\times10^{-4}$ & 28.5$\times$ \\
+France & 0.0029 & 0.906 & $8.2\times10^{-5}$ & 35.4$\times$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -288,16 +287,25 @@ France & 0.0021 & 0.902 & $8.1\times10^{-5}$ & 25.9$\times$ \\
 \begin{table}[t]
 \centering
 \small
-\caption{Portugal ablation, identical temporal holdout. The ranker improves
-global ordering (ROC-AUC) while degrading top-of-list precision (PR-AUC).}
+\caption{Ablation on identical temporal holdouts, all regions. Ensembling
+improves PR-AUC in Portugal and France but not Spain; the pairwise ranker
+never wins on PR-AUC.}
 \label{tab:ablation}
-\begin{tabular}{lrr}
+\begin{tabular}{llrr}
 \toprule
-Model & PR-AUC & ROC-AUC \\
+Region & Model & PR-AUC & ROC-AUC \\
 \midrule
-Single XGBoost & 0.0135 & 0.842 \\
-Ensemble ($K{=}5$, mean) & \textbf{0.0174} & 0.844 \\
-Pairwise ranker & 0.0088 & \textbf{0.850} \\
+Portugal & Single XGBoost & 0.0135 & 0.842 \\
+ & Ensemble ($K{=}5$) & \textbf{0.0174} & 0.844 \\
+ & Pairwise ranker & 0.0088 & \textbf{0.850} \\
+\midrule
+Spain & Single XGBoost & \textbf{0.0153} & 0.856 \\
+ & Ensemble ($K{=}5$) & 0.0108 & \textbf{0.861} \\
+ & Pairwise ranker & 0.0051 & 0.822 \\
+\midrule
+France & Single XGBoost & 0.0018 & 0.904 \\
+ & Ensemble ($K{=}5$) & \textbf{0.0029} & 0.906 \\
+ & Pairwise ranker & 0.0011 & \textbf{0.910} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -318,7 +326,8 @@ score scale itself, underlining why a single tree ensemble's point estimate
 should not be over-read.
 
 \paragraph{A ranking objective is the wrong trade.} The pairwise ranker
-achieves the best ROC-AUC (0.850) but the worst PR-AUC (0.0088). Pairwise
+takes the best ROC-AUC in Portugal and France yet posts the worst PR-AUC in
+every region, and in Spain loses on both metrics. Pairwise
 losses optimize ordering across the entire distribution, spending capacity
 separating mid-tail negatives; the classifier ensemble concentrates on the
 extreme tail. Since corridor triage consumes only the top of the list, we
