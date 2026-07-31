@@ -10,18 +10,21 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 /**
- * Fire risk ramp: amber -> red-orange -> dark crimson. The visible end starts
- * at amber (pale yellow vanishes on white) and the severe end goes dark so it
- * still reads against light terrain. sqrt scaling lifts the low-probability
- * end so sparse ignition probabilities are visible. On the satellite basemap
- * the alpha floor is raised so faint hexes stay visible over busy imagery.
+ * Fire risk ramp: amber -> red-orange -> dark crimson. Takes a NORMALIZED
+ * ramp position 0-1 (see WeekScale.normalize), not a raw probability:
+ * calibrated weekly wildfire occurrence probabilities top out at a few percent, so the
+ * ramp spans this week's distribution instead. The visible end starts at
+ * amber (pale yellow vanishes on white) and the severe end goes dark so it
+ * still reads against light terrain. sqrt scaling lifts the low end so
+ * sparse low-position cells are visible. On the satellite basemap the alpha
+ * floor is raised so faint hexes stay visible over busy imagery.
  */
 export function riskColor(
-  p: number,
+  position: number,
   opacity = 1,
   basemap: BasemapMode = "plain"
 ): [number, number, number, number] {
-  const t = Math.sqrt(clamp01(p));
+  const t = Math.sqrt(clamp01(position));
   // amber (245,158,11) -> red-orange (220,70,25) -> dark crimson (140,15,35)
   let r: number, g: number, b: number;
   if (t < 0.5) {
@@ -40,23 +43,24 @@ export function riskColor(
   return [Math.round(r), Math.round(g), Math.round(b), Math.round(a)];
 }
 
-/** Corridors below this risk render as neutral context, not part of the ramp. */
-export const CORRIDOR_RISK_FLOOR = 0.35;
+/** Corridors below this normalized ramp position render as neutral context, not part of the ramp. */
+export const CORRIDOR_RAMP_FLOOR = 0.35;
 
 /**
- * Corridor line color: below the floor, a thin neutral line so low-risk
- * corridors read as context - gray on the plain basemap, light on dark
- * satellite imagery; above it, a colorblind-safer amber-yellow -> orange ->
- * crimson ramp that works on both.
+ * Corridor line color: takes a NORMALIZED ramp position 0-1 (see
+ * WeekScale.normalize), not a raw risk value. Below the floor, a thin
+ * neutral line so low-position corridors read as context - gray on the plain
+ * basemap, light on dark satellite imagery; above it, a colorblind-safer
+ * amber-yellow -> orange -> crimson ramp that works on both.
  */
 export function corridorColor(
-  risk: number,
+  position: number,
   basemap: BasemapMode = "plain"
 ): [number, number, number, number] {
-  if (risk < CORRIDOR_RISK_FLOOR) {
+  if (position < CORRIDOR_RAMP_FLOOR) {
     return basemap === "satellite" ? [235, 238, 242, 140] : [120, 125, 135, 90];
   }
-  const t = (clamp01(risk) - CORRIDOR_RISK_FLOOR) / (1 - CORRIDOR_RISK_FLOOR);
+  const t = (clamp01(position) - CORRIDOR_RAMP_FLOOR) / (1 - CORRIDOR_RAMP_FLOOR);
   // amber-yellow (217,160,0) -> orange (234,88,12) -> crimson (153,27,27)
   let r: number, g: number, b: number;
   if (t < 0.5) {
@@ -73,22 +77,23 @@ export function corridorColor(
   return [Math.round(r), Math.round(g), Math.round(b), 235];
 }
 
-/** Corridor line width in px: low-risk lines stay thin, top corridors are clearly thickest. */
-export function corridorWidth(risk: number): number {
-  if (risk < CORRIDOR_RISK_FLOOR) return 1.2;
-  const t = (clamp01(risk) - CORRIDOR_RISK_FLOOR) / (1 - CORRIDOR_RISK_FLOOR);
+/** Corridor line width in px from normalized ramp position: low lines stay thin, top corridors are clearly thickest. */
+export function corridorWidth(position: number): number {
+  if (position < CORRIDOR_RAMP_FLOOR) return 1.2;
+  const t = (clamp01(position) - CORRIDOR_RAMP_FLOOR) / (1 - CORRIDOR_RAMP_FLOOR);
   return 2 + t * 4.5;
 }
 
-export function riskColorCss(p: number): string {
-  const [r, g, b] = riskColor(p, 1);
+/** CSS color at a normalized ramp position 0-1. */
+export function riskColorCss(position: number): string {
+  const [r, g, b] = riskColor(position, 1);
   return `rgb(${r} ${g} ${b})`;
 }
 
-/** CSS gradient matching the risk ramp, for legends and badges. */
+/** CSS gradient matching the risk ramp (over normalized positions), for legends and badges. */
 export function riskGradientCss(): string {
   const stops = [0.02, 0.1, 0.25, 0.5, 0.75, 1].map(
-    (p) => `${riskColorCss(p)} ${Math.round(p * 100)}%`
+    (t) => `${riskColorCss(t)} ${Math.round(t * 100)}%`
   );
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
@@ -127,20 +132,20 @@ export function geometryBounds(
   ];
 }
 
-export function formatPct(p: number): string {
+/**
+ * Format a calibrated probability honestly at small magnitudes: enough
+ * precision that a nonzero value never reads as "0%".
+ */
+export function formatProb(p: number): string {
+  if (!(p > 0)) return "0%";
   const pct = p * 100;
-  return `${pct >= 10 ? pct.toFixed(0) : pct.toFixed(1)}%`;
+  if (pct >= 10) return `${pct.toFixed(0)}%`;
+  if (pct >= 0.1) return `${pct.toFixed(1)}%`;
+  if (pct >= 0.01) return `${pct.toFixed(2)}%`;
+  return "<0.01%";
 }
 
 export function formatLength(m: number | null): string {
   if (m == null || !Number.isFinite(m)) return "-";
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
-}
-
-/** Tier badges: dark text on soft tinted chips so they stay readable on light surfaces. */
-export function riskTier(risk: number): { label: string; className: string } {
-  if (risk >= 0.7) return { label: "Severe", className: "bg-red-100 text-red-900 border-red-300" };
-  if (risk >= 0.4) return { label: "High", className: "bg-orange-100 text-orange-900 border-orange-300" };
-  if (risk >= 0.15) return { label: "Elevated", className: "bg-amber-100 text-amber-900 border-amber-300" };
-  return { label: "Moderate", className: "bg-slate-100 text-slate-700 border-slate-300" };
 }

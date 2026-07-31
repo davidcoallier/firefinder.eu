@@ -89,10 +89,10 @@ export default function AboutPage() {
         <SectionHeading>What is this?</SectionHeading>
         <div className="mt-3 space-y-3">
           <p>
-            Firefinder shows weekly wildfire ignition risk along power-grid
+            Firefinder shows weekly wildfire risk along power-grid
             corridors for Portugal, Spain and France. The
             country is divided into hexagons of roughly 5 km&sup2;, and every
-            week each hexagon gets a probability that a fire starts there,
+            week each hexagon gets a probability that wildfire reaches that hexagon,
             computed from satellite imagery, weather, terrain and land cover.
           </p>
           <p>
@@ -173,14 +173,16 @@ export default function AboutPage() {
             the fire season.
           </p>
           <p>
-            Some honest numbers. Ignition in any given cell in any given week
-            is rare: between roughly 1 in 700 and 1 in 12,000 depending on the
-            country. The model ranks risk well (ROC-AUC of 0.85 for Portugal,
+            Some honest numbers. Wildfire touching any given cell in any given
+            week is rare: between roughly 1 in 700 and 1 in 12,000 depending
+            on the country. The model ranks risk well (ROC-AUC of 0.85 for Portugal,
             0.86 for Spain and 0.90 for France, measured on held-out years it
             never saw during training),
-            but absolute probabilities at base rates this low are hard. That is
-            why the app talks in tiers (Severe, High, and so on) rather than
-            pretending to a precision the data cannot support.
+            but raw model scores are not probabilities. We calibrate them against
+            observed fire frequency, so the percentages you see are true weekly
+            likelihoods (even severe cells rarely exceed a few percent), and
+            the tiers (Severe, High, and so on) compare each cell against the
+            rest of the country that same week.
           </p>
           <p>
             The &quot;why&quot; bars you see when you click a corridor or cell
@@ -192,7 +194,7 @@ export default function AboutPage() {
             forecast. Small fires are missing from the training labels.
             And corridor risk means fire risk near the line, not a claim that
             the line causes fires; no public European dataset attributes
-            ignitions to grid equipment, so that distinction is beyond what
+            wildfire occurrences to grid equipment, so that distinction is beyond what
             open data can support.
           </p>
         </div>

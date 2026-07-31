@@ -1,23 +1,33 @@
 "use client";
 
-import { formatLength, formatPct, riskColorCss, riskTier } from "@/lib/colors";
+import { formatLength, formatProb, riskColorCss } from "@/lib/colors";
+import { spreadAgreement, type WeekScale } from "@/lib/tiers";
 import type { Mode } from "./Header";
 import type { SegmentFeature, Selection } from "@/lib/types";
 import { AdvancedDriverBars, SimpleDriverBars } from "./DriverBars";
 
-function RiskBadge({ risk, mode }: { risk: number; mode: Mode }) {
-  const tier = riskTier(risk);
+/** Tier badge relative to this week's distribution; advanced mode adds the calibrated probability. */
+function RiskBadge({
+  value,
+  scale,
+  mode,
+}: {
+  value: number;
+  scale: WeekScale;
+  mode: Mode;
+}) {
+  const tier = scale.tier(value);
   return (
     <span
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tier.className}`}
     >
       <span
         className="h-2 w-2 rounded-full"
-        style={{ background: riskColorCss(risk) }}
+        style={{ background: riskColorCss(scale.normalize(value)) }}
       />
       {tier.label}
       {mode === "advanced" && (
-        <span className="font-normal opacity-80">{formatPct(risk)}</span>
+        <span className="font-normal opacity-80">{formatProb(value)}</span>
       )}
     </span>
   );
@@ -43,16 +53,22 @@ function segmentSubtitle(f: SegmentFeature): string {
 function SelectionDetail({
   selection,
   mode,
+  corridorScale,
+  cellScale,
   onBack,
 }: {
   selection: Selection;
   mode: Mode;
+  corridorScale: WeekScale;
+  cellScale: WeekScale;
   onBack: () => void;
 }) {
   const isSegment = selection.kind === "segment";
   const drivers = isSegment
     ? selection.feature.properties.drivers
     : selection.cell.drivers;
+  const spread = !isSegment && selection.cell.s != null ? selection.cell.s : null;
+  const agreement = spread != null ? spreadAgreement(spread) : null;
 
   return (
     <div>
@@ -76,8 +92,19 @@ function SelectionDetail({
                 {segmentSubtitle(selection.feature)}
               </p>
             </div>
-            <RiskBadge risk={selection.feature.properties.risk} mode={mode} />
+            <RiskBadge
+              value={selection.feature.properties.risk}
+              scale={corridorScale}
+              mode={mode}
+            />
           </div>
+          {mode === "advanced" && (
+            <p className="mt-2 text-sm text-slate-600">
+              {formatProb(selection.feature.properties.risk)} corridor risk on
+              the calibrated weekly probability scale (a blend of its worst
+              and average member cells).
+            </p>
+          )}
           <p className="mt-3 text-sm leading-relaxed text-slate-500">
             {mode === "simple"
               ? "Why this corridor is at risk this week:"
@@ -93,12 +120,30 @@ function SelectionDetail({
                 {selection.cell.h3}
               </p>
             </div>
-            <RiskBadge risk={selection.cell.p} mode={mode} />
+            <RiskBadge value={selection.cell.p} scale={cellScale} mode={mode} />
           </div>
+          {mode === "advanced" && (
+            <p className="mt-2 text-sm text-slate-600">
+              {formatProb(selection.cell.p)} weekly wildfire probability.
+            </p>
+          )}
+          {mode === "advanced" && spread != null && agreement && (
+            <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs font-medium text-slate-700">
+                Model agreement: {agreement.label.toLowerCase()}
+                <span className="float-right font-mono text-[11px] text-slate-500">
+                  spread {spread.toFixed(3)}
+                </span>
+              </p>
+              <p className="mt-0.5 text-xs leading-snug text-slate-500">
+                {agreement.sentence}
+              </p>
+            </div>
+          )}
           <p className="mt-3 text-sm leading-relaxed text-slate-500">
             {mode === "simple"
-              ? "Why ignition risk is elevated here:"
-              : "Full driver attribution (signed contribution to ignition probability):"}
+              ? "Why wildfire risk is elevated here:"
+              : "Full driver attribution (signed contribution to wildfire probability):"}
           </p>
         </>
       )}
@@ -125,6 +170,8 @@ type SidePanelProps = {
   mode: Mode;
   segments: SegmentFeature[];
   loading: boolean;
+  corridorScale: WeekScale;
+  cellScale: WeekScale;
   selection: Selection | null;
   onSelectSegment: (feature: SegmentFeature) => void;
   onClearSelection: () => void;
@@ -134,19 +181,29 @@ export default function SidePanel({
   mode,
   segments,
   loading,
+  corridorScale,
+  cellScale,
   selection,
   onSelectSegment,
   onClearSelection,
 }: SidePanelProps) {
+  // The pipeline publishes an authoritative per-week rank; trust it over a
+  // local re-sort so the list matches the scoring run's own ordering.
   const top = [...segments]
-    .sort((a, b) => b.properties.risk - a.properties.risk)
+    .sort((a, b) => a.properties.rank - b.properties.rank)
     .slice(0, 20);
 
   return (
     <div className="flex h-full flex-col">
       {selection ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <SelectionDetail selection={selection} mode={mode} onBack={onClearSelection} />
+          <SelectionDetail
+            selection={selection}
+            mode={mode}
+            corridorScale={corridorScale}
+            cellScale={cellScale}
+            onBack={onClearSelection}
+          />
         </div>
       ) : (
         <>
@@ -186,7 +243,11 @@ export default function SidePanel({
                           {segmentSubtitle(f)}
                         </span>
                       </span>
-                      <RiskBadge risk={f.properties.risk} mode={mode} />
+                      <RiskBadge
+                        value={f.properties.risk}
+                        scale={corridorScale}
+                        mode={mode}
+                      />
                     </button>
                   </li>
                 ))}

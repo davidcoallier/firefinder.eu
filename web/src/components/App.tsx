@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { fetchCellDrivers, fetchCells, fetchFires, fetchSegments, fetchWeeks } from "@/lib/api";
 import {
   getBasemapSnapshot,
@@ -12,6 +12,7 @@ import {
   type BasemapMode,
 } from "@/lib/basemap";
 import { geometryBounds } from "@/lib/colors";
+import { makeWeekScale } from "@/lib/tiers";
 import {
   fetchLiveFires,
   getLiveFiresSnapshot,
@@ -53,8 +54,13 @@ const MapView = dynamic(() => import("./MapView"), {
   ),
 });
 
-/** Cells below this are hidden by default so the map isn't carpeted. */
-const DEFAULT_THRESHOLD = 0.05;
+/**
+ * Default cell visibility cutoff as a NORMALIZED position on this week's
+ * ramp (0 = show every published cell, 1 = only cells at or above the
+ * week's p95). 0.1 reproduces roughly the visible set the old absolute
+ * 0.05 cutoff produced before the model shipped calibrated probabilities.
+ */
+const DEFAULT_THRESHOLD = 0.1;
 
 export default function App() {
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>(DEFAULT_JURISDICTION);
@@ -74,6 +80,8 @@ export default function App() {
   const [weekData, setWeekData] = useState<{
     week: string;
     cells: Cell[];
+    /** False while risk-descending pages are still streaming in. */
+    cellsComplete: boolean;
     segments: SegmentCollection | null;
   } | null>(null);
   const [fires, setFires] = useState<FireCollection | null>(null);
@@ -166,18 +174,19 @@ export default function App() {
       setWeekData((prev) => ({
         week,
         cells: cellsSoFar,
+        cellsComplete: false,
         segments: prev?.week === week ? prev.segments : null,
       }));
     };
     Promise.all([fetchCells(regionId, week, onPage), fetchSegments(regionId, week)])
       .then(([cs, segs]) => {
         if (cancelled) return;
-        setWeekData({ week, cells: cs, segments: segs });
+        setWeekData({ week, cells: cs, cellsComplete: true, segments: segs });
         setError(null);
       })
       .catch((e: unknown) => {
         if (cancelled) return;
-        setWeekData({ week, cells: [], segments: null });
+        setWeekData({ week, cells: [], cellsComplete: true, segments: null });
         setError(e instanceof Error ? e.message : String(e));
       });
     return () => {
@@ -214,9 +223,32 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const cells = weekData?.cells ?? [];
+  const cells = useMemo(() => weekData?.cells ?? [], [weekData]);
+  const cellsComplete = weekData?.cellsComplete ?? false;
   const segments = weekData?.segments ?? null;
   const weekLoading = week !== null && weekData?.week !== week;
+
+  // Relative scales for the currently loaded week + jurisdiction: tiers and
+  // colors compare against this week's distribution, not absolute 0-1 risk.
+  const corridorScale = useMemo(
+    () => makeWeekScale((segments?.features ?? []).map((f) => f.properties.risk)),
+    [segments]
+  );
+  // Cells stream in risk-descending pages, so percentiles over a partial set
+  // are biased high. Until the full set lands, reuse the corridor scale
+  // (corridor risks live on the same calibrated scale) or, failing that, a
+  // provisional scale from the pages so far (page one holds the maximum,
+  // which is what the ramp mostly needs).
+  const cellScale = useMemo(() => {
+    if (cellsComplete && cells.length > 0) return makeWeekScale(cells.map((c) => c.p));
+    if (corridorScale.size > 0) return corridorScale;
+    return makeWeekScale(cells.map((c) => c.p));
+  }, [cells, cellsComplete, corridorScale]);
+
+  // Raw probability cutoff equivalent to the normalized threshold. While
+  // pages are still streaming, everything loaded so far is top-of-week, so
+  // show it all rather than filter against a provisional denominator.
+  const cellCutoff = cellsComplete ? threshold * cellScale.rampTop : 0;
 
   const handleWeekChange = useCallback((w: string) => {
     setWeek(w);
@@ -298,7 +330,9 @@ export default function App() {
           showLiveFires={liveFiresOn}
           onSelectLiveFire={setLiveFire}
           cellOpacity={cellOpacity}
-          threshold={threshold}
+          cellCutoff={cellCutoff}
+          cellScale={cellScale}
+          corridorScale={corridorScale}
           selection={selection}
           onSelect={setSelection}
           focus={focus}
@@ -351,6 +385,8 @@ export default function App() {
                 mode={mode}
                 segments={segments?.features ?? []}
                 loading={weekLoading}
+                corridorScale={corridorScale}
+                cellScale={cellScale}
                 selection={selection}
                 onSelectSegment={handleSelectSegmentFromList}
                 onClearSelection={() => setSelection(null)}
@@ -397,6 +433,7 @@ export default function App() {
               onCellOpacity={setCellOpacity}
               threshold={threshold}
               onThreshold={setThreshold}
+              thresholdProbability={cellsComplete ? cellCutoff : null}
             />
           </div>
         )}

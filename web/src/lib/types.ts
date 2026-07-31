@@ -3,8 +3,13 @@ export type Drivers = Record<string, number>;
 
 export interface Cell {
   h3: string;
-  /** Ignition probability, 0-1. */
+  /**
+   * Calibrated weekly wildfire probability. True likelihoods, so values are
+   * small: the weekly maximum is typically around 0.02-0.06.
+   */
   p: number;
+  /** Ensemble spread (member disagreement), roughly 0-0.1. Higher = less agreement. */
+  s?: number;
   drivers?: Drivers | null;
 }
 
@@ -27,7 +32,10 @@ export interface FeatureCollection<P> {
 
 export interface SegmentProperties {
   id: string | number;
-  /** Corridor risk score, 0-1. */
+  /**
+   * Corridor risk: 0.65 * max + 0.35 * mean of member cell probabilities, so
+   * it lives on the same small calibrated scale as Cell.p.
+   */
   risk: number;
   rank: number;
   voltage_kv: number | null;

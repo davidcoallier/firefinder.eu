@@ -31,7 +31,7 @@ export default function Header({
           </span>
         </h1>
         <p className="hidden truncate text-sm text-slate-500 lg:block">
-          Weekly wildfire ignition risk along power-grid corridors:{" "}
+          Weekly wildfire risk along power-grid corridors:{" "}
           {jurisdiction.label}
         </p>
       </div>

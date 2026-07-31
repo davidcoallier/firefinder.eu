@@ -30,10 +30,10 @@ import {
   ACCENT_SELECT,
   corridorColor,
   corridorWidth,
-  formatPct,
+  formatProb,
   riskColor,
-  riskTier,
 } from "@/lib/colors";
+import type { WeekScale } from "@/lib/tiers";
 
 /** Consecutive satellite tile failures before we report the source as broken. */
 const SATELLITE_ERROR_LIMIT = 3;
@@ -60,7 +60,12 @@ type MapViewProps = {
   onSelectLiveFire: (feature: LiveFireFeature | null) => void;
   gridContext: GeoJSON.FeatureCollection | null;
   cellOpacity: number;
-  threshold: number;
+  /** Raw probability below which cells are hidden (already resolved from the relative threshold). */
+  cellCutoff: number;
+  /** Relative scale for this week's cell probabilities (colors + tooltip tiers). */
+  cellScale: WeekScale;
+  /** Relative scale for this week's corridor risks. */
+  corridorScale: WeekScale;
   selection: Selection | null;
   onSelect: (selection: Selection | null) => void;
   focus: MapFocus | null;
@@ -98,8 +103,10 @@ const TOOLTIP_STYLE: Partial<CSSStyleDeclaration> = {
   padding: "6px 10px",
 };
 
-function getTooltip(
-  info: PickingInfo
+function buildTooltip(
+  info: PickingInfo,
+  cellScale: WeekScale,
+  corridorScale: WeekScale
 ): { text: string; style: Partial<CSSStyleDeclaration> } | null {
   const obj = info.object as unknown;
   if (!obj) return null;
@@ -114,14 +121,14 @@ function getTooltip(
     const p = obj.properties;
     const where = p.locality ? `Near ${p.locality}` : `Corridor #${p.rank}`;
     return {
-      text: `${where}: ${riskTier(p.risk).label} risk (${formatPct(p.risk)})`,
+      text: `${where}: ${corridorScale.tier(p.risk).label} this week (${formatProb(p.risk)} weekly wildfire probability)`,
       style: TOOLTIP_STYLE,
     };
   }
   const cell = obj as Cell;
   if (typeof cell.p === "number") {
     return {
-      text: `Ignition probability ${formatPct(cell.p)}`,
+      text: `${formatProb(cell.p)} weekly wildfire probability (${cellScale.tier(cell.p).label} this week)`,
       style: TOOLTIP_STYLE,
     };
   }
@@ -143,7 +150,9 @@ export default function MapView({
   onSelectLiveFire,
   gridContext,
   cellOpacity,
-  threshold,
+  cellCutoff,
+  cellScale,
+  corridorScale,
   selection,
   onSelect,
   focus,
@@ -158,6 +167,13 @@ export default function MapView({
   const styleKeyRef = useRef<string | null>(null);
   const flownRegionIdRef = useRef<string | null>(null);
   const satelliteErrorsRef = useRef(0);
+  // The overlay's tooltip callback is bound once at init; it reads the
+  // current week's scales through this ref.
+  const scalesRef = useRef({ cell: cellScale, corridor: corridorScale });
+
+  useEffect(() => {
+    scalesRef.current = { cell: cellScale, corridor: corridorScale };
+  }, [cellScale, corridorScale]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -206,7 +222,8 @@ export default function MapView({
     const overlay = new MapboxOverlay({
       interleaved: false,
       layers: [],
-      getTooltip,
+      getTooltip: (info: PickingInfo) =>
+        buildTooltip(info, scalesRef.current.cell, scalesRef.current.corridor),
       onClick: (info: PickingInfo) => {
         // Click on empty space clears the selection(s).
         if (!info.layer) {
@@ -320,7 +337,7 @@ export default function MapView({
       layers.push(
         new H3HexagonLayer<Cell>({
           id: "cells",
-          data: cells.filter((c) => c.p >= threshold),
+          data: cells.filter((c) => c.p >= cellCutoff),
           getHexagon: (d) => d.h3,
           filled: true,
           extruded: false,
@@ -328,7 +345,7 @@ export default function MapView({
           getFillColor: (d) =>
             d.h3 === selectedCellId
               ? ACCENT_SELECT
-              : riskColor(d.p, cellOpacity, basemap),
+              : riskColor(cellScale.normalize(d.p), cellOpacity, basemap),
           pickable: true,
           onClick: (info) => {
             const cell = info.object as Cell | undefined;
@@ -336,7 +353,7 @@ export default function MapView({
             return true;
           },
           updateTriggers: {
-            getFillColor: [cellOpacity, selectedCellId, basemap],
+            getFillColor: [cellOpacity, selectedCellId, basemap, cellScale],
           },
         })
       );
@@ -352,13 +369,13 @@ export default function MapView({
           getLineColor: (f) => {
             const props = (f as unknown as SegmentFeature).properties;
             if (props.id === selectedSegmentId) return ACCENT_SELECT;
-            return corridorColor(props.risk, basemap);
+            return corridorColor(corridorScale.normalize(props.risk), basemap);
           },
           getLineWidth: (f) => {
             const props = (f as unknown as SegmentFeature).properties;
-            if (props.id === selectedSegmentId)
-              return Math.max(3, corridorWidth(props.risk));
-            return corridorWidth(props.risk);
+            const width = corridorWidth(corridorScale.normalize(props.risk));
+            if (props.id === selectedSegmentId) return Math.max(3, width);
+            return width;
           },
           lineWidthUnits: "pixels",
           lineWidthMinPixels: 1.2,
@@ -369,8 +386,8 @@ export default function MapView({
             return true;
           },
           updateTriggers: {
-            getLineColor: [selectedSegmentId, basemap],
-            getLineWidth: [selectedSegmentId],
+            getLineColor: [selectedSegmentId, basemap, corridorScale],
+            getLineWidth: [selectedSegmentId, corridorScale],
           },
         })
       );
@@ -400,7 +417,7 @@ export default function MapView({
     }
 
     overlay.setProps({ layers });
-  }, [cells, segments, fires, liveFires, gridContext, showCells, showSegments, showFires, showLiveFires, cellOpacity, threshold, selection, basemap]);
+  }, [cells, segments, fires, liveFires, gridContext, showCells, showSegments, showFires, showLiveFires, cellOpacity, cellCutoff, cellScale, corridorScale, selection, basemap]);
 
   // Fly to a focus target (e.g. a segment picked from the list).
   useEffect(() => {
