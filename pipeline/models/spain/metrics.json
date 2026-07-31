@@ -3,77 +3,90 @@
   "n_train": 9663631,
   "n_test": 6871089,
   "pos_train": 1890,
-  "pos_test": 2602,
+  "pos_test": 2606,
   "base_rate_test": 0.000379,
-  "pr_auc": 0.0099,
-  "roc_auc": 0.8584,
-  "calibration": [
+  "n_members": 5,
+  "single_member": {
+    "pr_auc": 0.0153,
+    "roc_auc": 0.856
+  },
+  "ensemble": {
+    "pr_auc": 0.0108,
+    "roc_auc": 0.8605
+  },
+  "ranker_experiment": {
+    "pr_auc": 0.0051,
+    "roc_auc": 0.8217
+  },
+  "pr_auc": 0.0108,
+  "roc_auc": 0.8605,
+  "calibration_before_isotonic": [
     {
-      "mean_pred": 0.0008,
+      "mean_pred": 0.00076,
       "frac_fire": 1e-05,
-      "n": 687110
+      "n": 687109
     },
     {
-      "mean_pred": 0.00306,
+      "mean_pred": 0.00303,
       "frac_fire": 2e-05,
-      "n": 687108
+      "n": 687109
     },
     {
-      "mean_pred": 0.00713,
+      "mean_pred": 0.00711,
       "frac_fire": 5e-05,
       "n": 687109
     },
     {
-      "mean_pred": 0.01388,
-      "frac_fire": 8e-05,
+      "mean_pred": 0.01392,
+      "frac_fire": 7e-05,
       "n": 687109
     },
     {
-      "mean_pred": 0.0248,
-      "frac_fire": 8e-05,
+      "mean_pred": 0.0249,
+      "frac_fire": 0.0001,
       "n": 687109
     },
     {
-      "mean_pred": 0.04284,
-      "frac_fire": 0.00014,
+      "mean_pred": 0.04288,
+      "frac_fire": 0.00013,
       "n": 687108
     },
     {
-      "mean_pred": 0.07407,
-      "frac_fire": 0.00023,
+      "mean_pred": 0.07365,
+      "frac_fire": 0.0002,
       "n": 687109
     },
     {
-      "mean_pred": 0.13178,
+      "mean_pred": 0.13011,
       "frac_fire": 0.00035,
       "n": 687109
     },
     {
-      "mean_pred": 0.25053,
-      "frac_fire": 0.00065,
+      "mean_pred": 0.24461,
+      "frac_fire": 0.00064,
       "n": 687109
     },
     {
-      "mean_pred": 0.55492,
-      "frac_fire": 0.00218,
+      "mean_pred": 0.53745,
+      "frac_fire": 0.00222,
       "n": 687109
     }
   ],
   "by_year": {
     "2024": {
-      "pr_auc": 0.004,
-      "roc_auc": 0.8663,
+      "pr_auc": 0.0031,
+      "roc_auc": 0.8677,
       "positives": 395
     },
     "2025": {
-      "pr_auc": 0.0197,
-      "roc_auc": 0.8645,
+      "pr_auc": 0.0296,
+      "roc_auc": 0.8704,
       "positives": 1370
     },
     "2026": {
-      "pr_auc": 0.0098,
-      "roc_auc": 0.8073,
-      "positives": 837
+      "pr_auc": 0.0054,
+      "roc_auc": 0.8026,
+      "positives": 841
     }
   }
 }
