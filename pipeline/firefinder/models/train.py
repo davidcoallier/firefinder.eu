@@ -105,10 +105,12 @@ def run(region: str, test_year: int = 2024):
     p_single = members[0].predict_proba(test[FEATURES])[:, 1]
     p_ens = _ensemble_proba(members, test[FEATURES])
 
-    # isotonic calibrator fitted on holdout ensemble predictions; monotone, so
-    # it changes likelihoods, not rankings (holdout ROC/PR stay honest)
+    # isotonic calibrator fitted forward: only the FIRST held-out season is
+    # used for fitting, leaving later seasons untouched for reliability
+    # reporting. Monotone, so ranking metrics are unaffected either way.
+    cal_mask = (test["week"].dt.year == test_year).values
     iso = IsotonicRegression(out_of_bounds="clip")
-    iso.fit(p_ens, test["fire"])
+    iso.fit(p_ens[cal_mask], test["fire"].values[cal_mask])
 
     metrics = {
         "test_from_year": test_year,

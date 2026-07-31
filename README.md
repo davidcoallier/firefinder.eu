@@ -61,10 +61,11 @@ the pipeline.
 ## The model
 
 **Task.** For every H3 cell and week of the April-October fire season, predict
-the probability that a fire ignites in that cell that week. Labels come from
+the probability that wildfire touches that cell that week. Labels come from
 EFFIS perimeters (a cell-week is positive if a perimeter with that fire date
-touches the cell). Ignition is a rare event with a base rate of ~0.1-0.15%,
-which drives every modelling and evaluation choice below.
+touches the cell), so the target is burnt-area occurrence, not point ignition:
+one large fire marks many cells. Occurrence is a rare event with a base rate
+of ~0.1-0.15%, which drives every modelling and evaluation choice below.
 
 **Features (21).** Vegetation state from the latest monthly composite *before*
 the scored week (using the same month would leak the post-fire NDVI drop):

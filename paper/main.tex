@@ -11,7 +11,7 @@
 \usepackage{microtype}
 \captionsetup{font=small,labelfont=bf}
 
-\title{\bfseries Calibrated Ensemble Forecasting of Weekly Wildfire Ignition
+\title{\bfseries Calibrated Ensemble Estimation of Weekly Wildfire Occurrence
 Risk Along Power-Grid Corridors from Open Data}
 
 \author{%
@@ -29,13 +29,13 @@ Vegetation in contact with electrical infrastructure is a leading cause of both
 catastrophic wildfires and large-scale outages, yet operational tools that
 prioritize \emph{which corridors to inspect this week} remain rare, and the
 data behind them is typically proprietary. We present Firefinder, a deployed
-national-scale system that forecasts weekly wildfire ignition probability for
+national-scale system that estimates weekly wildfire occurrence probability for
 every $\sim$5\,km$^2$ hexagonal cell of Portugal, Spain and France, and
 aggregates that risk onto 304{,}758 power line corridors extracted from
 OpenStreetMap. The system is built exclusively from free, keyless, public data:
 raw Sentinel-2 imagery with in-pipeline cloud masking, ERA5-derived weather,
 a decade of Copernicus EFFIS burnt-area perimeters as labels, and open terrain
-and land-cover products. Ignition is an extreme rare event in this framing,
+and land-cover products. Wildfire occurrence is an extreme rare event in this framing,
 with weekly per-cell base rates between $1.5\times10^{-3}$ and
 $8.1\times10^{-5}$; we therefore evaluate exclusively on strict temporal
 holdouts using ranking metrics, and convert scores to usable likelihoods with
@@ -87,7 +87,7 @@ contributions:
   holdouts (train through 2023, test 2024--2026), report PR-AUC against base
   rates of $10^{-3}$ to $10^{-5}$, and calibrate scores to true likelihoods
   with isotonic regression, showing that even the highest-risk cells rarely
-  exceed a few percent weekly ignition probability.
+  exceed a few percent weekly occurrence probability.
   \item \textbf{Corridor-level risk aggregation.} Cell risk is mapped onto
   the power network with an explicit, documented aggregation rule, producing
   a ranked list of corridors with per-corridor explanations derived from
@@ -113,6 +113,19 @@ $(g, t)$ we construct a feature vector $x_{g,t} \in \mathbb{R}^{21}$
 that is, whether an official burnt-area perimeter with a fire date in week $t$
 intersects cell $g$. The task is to estimate
 $p_{g,t} = \Pr(y_{g,t}=1 \mid x_{g,t})$.
+
+Two aspects of this target deserve precision. First, $y_{g,t}$ is
+\emph{wildfire occurrence}, not ignition: a single large fire produces many
+positive cells from one ignition point, so per-cell probabilities describe
+the chance a cell is touched by fire that week, which for corridor triage is
+arguably the more operationally relevant event. We use ``occurrence''
+throughout and reserve ``ignition'' for ignition-source discussions. Second,
+the weekly weather features are \emph{observed}: retrospective results
+measure discrimination given the week's realized weather, and live operation
+substitutes the most recent observations (persistence). We therefore speak
+of risk estimation rather than forecasting; substituting numerical weather
+prediction inputs would make the system a true forecast without changing the
+learning problem.
 
 The label distribution is extremely long-tailed. Test-period base rates
 $\bar{y}$ are $1.5\times10^{-3}$ (Portugal), $3.8\times10^{-4}$ (Spain) and
@@ -209,11 +222,12 @@ Class weighting (Eq.~\ref{eq:erm}) deliberately distorts probabilities to
 improve minority-class learning, so raw scores are rankings, not likelihoods.
 We fit an isotonic regression \citep{zadrozny2002transforming}
 $g^{*} = \arg\min_{g \in \mathcal{M}} \sum_i \big(g(\bar{p}_i) - y_i\big)^2$
-over the class of monotone step functions $\mathcal{M}$ on the temporal
-holdout, and report $g^{*}(\bar{p})$ as the deployed probability. Because
+over the class of monotone step functions $\mathcal{M}$, fitted
+\emph{forward}: only the first held-out season (2024) is used to fit
+$g^{*}$, and reliability is reported on the untouched 2025--2026 seasons. Because
 $g^{*}$ is monotone, all ranking metrics are unchanged; what changes is
 interpretability. After calibration, the single highest-risk cell-week in
-Portugal carries roughly a 5\% weekly ignition probability, an honest number
+Portugal carries roughly a 5\% weekly occurrence probability, an honest number
 that reframes the product interface: tiers are assigned by position in the
 week's risk distribution, while calibrated percentages are shown as
 likelihoods.
@@ -318,9 +332,11 @@ product surface is not the same as optimizing the product.
 \includegraphics[width=0.48\linewidth]{figures/reliability.pdf}
 \caption{Portugal temporal holdout (2024--2026). Left: precision-recall
 curves (log precision axis); the ensemble dominates the single model in the
-high-precision regime. Right: reliability diagram on quantile bins (log-log);
-class weighting inflates raw scores by roughly an order of magnitude, and
-isotonic calibration restores empirical frequencies.}
+high-precision regime. Right: reliability diagram on quantile bins (log-log),
+with the isotonic calibrator fitted on the 2024 season and evaluated on
+untouched 2025--2026; class weighting inflates raw scores by roughly an
+order of magnitude, and the forward-fitted transform aligns them with
+observed frequencies on unseen seasons.}
 \label{fig:pr}
 \end{figure}
 
@@ -335,9 +351,11 @@ season-to-season variance is the dominant error source.}
 \end{figure}
 
 \paragraph{Calibration.} Figure~\ref{fig:pr} (right) shows the reliability
-diagram. Raw class-weighted scores overstate probability by roughly an order
-of magnitude; isotonic calibration aligns predicted probability with
-observed frequency across four orders of magnitude. Post-calibration, the
+diagram under the forward design: the calibrator is fitted on 2024 and
+evaluated on untouched 2025--2026. Raw class-weighted scores overstate
+probability by roughly an order of magnitude; the forward-fitted isotonic
+transform aligns predicted probability with observed frequency on unseen
+seasons across the probability range. Post-calibration, the
 distribution of deployed probabilities is honest but compressed (maximum
 $\approx 0.05$ in a typical Portuguese week), motivating the
 distribution-relative tier presentation described in
@@ -359,21 +377,22 @@ future-work direction.
 Weekly weather features are observed rather than forecast; a production
 forecast system would substitute NWP outputs, leaving backtests unchanged.
 EFFIS perimeters are MODIS-derived and under-report small fires, so labels
-are a conservative subset of true ignitions, and label noise differs by
+are a conservative subset of true fires, and label noise differs by
 country. The evaluation is temporally but not spatially blocked; spatial
 autocorrelation within a week may flatter absolute metrics, though it
 affects all compared models equally. The corridor aggregation weights in
 Eq.~\ref{eq:corridor} are heuristic pending corridor-level incident data,
 which no public European dataset provides: corridor risk is fire risk near
-the line, not a claim that the line causes ignition. Finally, isotonic
-calibration is fitted on the same holdout used for reporting; because the
-transform is monotone the reported ranking metrics are unaffected, but the
-post-calibration reliability curve should be read as in-sample.
+the line, not a claim that the line causes ignition. Finally, the label is
+burnt-area occurrence rather than point ignition, so spatially large fires
+contribute many positive cells from a single ignition; models of ignition
+points proper would require ignition-location datasets that EFFIS does not
+provide.
 
 \section{Conclusion}
 
 Firefinder demonstrates that operationally useful, corridor-level wildfire
-risk forecasting can be built end to end from free public data and modest
+risk estimation can be built end to end from free public data and modest
 models, provided the rare-event statistics are treated honestly: temporal
 holdouts, base-rate-aware metrics, calibration to true likelihoods, and
 uncertainty from ensemble disagreement. A seed-diverse XGBoost ensemble with

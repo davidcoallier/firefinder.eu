@@ -55,11 +55,19 @@ def main():
     fig.tight_layout()
     fig.savefig(OUT / "pr_curves.pdf")
 
-    # Figure 2: reliability before/after isotonic (quantile bins, log-log)
-    iso = IsotonicRegression(out_of_bounds="clip").fit(p_ens, y)
-    p_cal = iso.predict(p_ens)
+    # Figure 2: reliability with FORWARD calibration: isotonic fitted on the
+    # 2024 season only, curve drawn on untouched 2025-2026
+    cal_mask = (test["week"].dt.year == 2024).values
+    eval_mask = ~cal_mask
+    iso = IsotonicRegression(out_of_bounds="clip").fit(p_ens[cal_mask], y[cal_mask])
+    p_eval_raw = p_ens[eval_mask]
+    p_eval_cal = iso.predict(p_eval_raw)
+    y_eval = y[eval_mask]
     fig, ax = plt.subplots(figsize=(4.2, 3.2))
-    for p, label, marker in [(p_ens, "Uncalibrated ensemble", "o"), (p_cal, "After isotonic", "s")]:
+    for p, y, label, marker in [
+        (p_eval_raw, y_eval, "Uncalibrated ensemble", "o"),
+        (p_eval_cal, y_eval, "Isotonic (fitted on 2024)", "s"),
+    ]:
         bins = pd.qcut(pd.Series(p), 12, duplicates="drop")
         g = pd.DataFrame({"p": p, "y": y}).groupby(bins, observed=True).mean()
         g = g[(g["p"] > 0) & (g["y"] > 0)]
