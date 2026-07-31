@@ -118,15 +118,18 @@ def _num(v):
 
 
 def write_cell_scores(region_id: str, week, rows, model_version: str):
-    """rows: iterable of (h3, p_ignition, drivers_dict)."""
+    """rows: iterable of (h3, p_ignition, p_spread, drivers_dict)."""
     with _conn() as conn, conn.cursor() as cur:
         cur.executemany(
-            """insert into cell_scores (h3, week, p_ignition, drivers, model_version, region_id)
-               values (%s, %s, %s, %s, %s, %s)
+            """insert into cell_scores
+               (h3, week, p_ignition, p_spread, drivers, model_version, region_id)
+               values (%s, %s, %s, %s, %s, %s, %s)
                on conflict (h3, week) do update
-                 set p_ignition = excluded.p_ignition, drivers = excluded.drivers,
+                 set p_ignition = excluded.p_ignition, p_spread = excluded.p_spread,
+                     drivers = excluded.drivers,
                      model_version = excluded.model_version, region_id = excluded.region_id""",
-            [(h, week, float(p), json.dumps(d), model_version, region_id) for h, p, d in rows],
+            [(h, week, float(p), float(s), json.dumps(d), model_version, region_id)
+             for h, p, s, d in rows],
         )
 
 
