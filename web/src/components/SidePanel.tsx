@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { formatFireDistance } from "@/lib/activeFires";
 import { formatLength, formatProb, riskColorCss } from "@/lib/colors";
 import { spreadAgreement, type WeekScale } from "@/lib/tiers";
@@ -7,8 +8,8 @@ import type { Mode } from "./Header";
 import type { SegmentFeature, Selection } from "@/lib/types";
 import { AdvancedDriverBars, SimpleDriverBars } from "./DriverBars";
 
-/** How many flagged corridors the pinned status section lists before "+N more". */
-const MAX_FLAGGED_ROWS = 10;
+/** Which list the panel is showing: the weekly ranking or live-fire proximity. */
+type PanelTab = "week" | "fires";
 
 /** Small flame marker for corridors flagged as near an active fire. */
 function FlameMark() {
@@ -109,7 +110,7 @@ function SelectionDetail({
         onClick={onBack}
         className="mb-3 text-sm font-medium text-orange-700 hover:text-orange-800"
       >
-        &larr; Back to ranking
+        &larr; Back to list
       </button>
 
       {isSegment ? (
@@ -222,6 +223,60 @@ type SidePanelProps = {
   onClearSelection: () => void;
 };
 
+/** One corridor row, shared by both tabs. */
+function SegmentRow({
+  feature,
+  lead,
+  fireDistanceM,
+  showFlameInline,
+  mode,
+  corridorScale,
+  onSelect,
+}: {
+  feature: SegmentFeature;
+  /** Content of the narrow left column: a rank number or a flame mark. */
+  lead: React.ReactNode;
+  /** When set, an extra "fire detected ~X away" line under the subtitle. */
+  fireDistanceM?: number;
+  /** Append a flame mark after the headline (ranked rows near a fire). */
+  showFlameInline?: boolean;
+  mode: Mode;
+  corridorScale: WeekScale;
+  onSelect: (feature: SegmentFeature) => void;
+}) {
+  return (
+    <li>
+      <button
+        onClick={() => onSelect(feature)}
+        className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-orange-50/60"
+      >
+        <span className="w-7 shrink-0 text-right font-mono text-xs text-slate-400">
+          {lead}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 truncate text-[15px] font-medium text-slate-800">
+            <span className="truncate">{segmentHeadline(feature)}</span>
+            {showFlameInline && <FlameMark />}
+          </span>
+          <span className="block truncate text-xs text-slate-500">
+            {segmentSubtitle(feature)}
+          </span>
+          {fireDistanceM != null && (
+            <span className="block text-xs font-medium text-red-800">
+              fire detected {formatFireDistance(fireDistanceM)} away
+            </span>
+          )}
+        </span>
+        <RiskBadge
+          value={feature.properties.risk}
+          scale={corridorScale}
+          mode={mode}
+        />
+      </button>
+    </li>
+  );
+}
+
 export default function SidePanel({
   mode,
   segments,
@@ -234,14 +289,18 @@ export default function SidePanel({
   onSelectSegment,
   onClearSelection,
 }: SidePanelProps) {
+  // Which tab is showing. Lives here (not reset by selection) so the back
+  // button from a detail view returns to whichever tab was active.
+  const [tab, setTab] = useState<PanelTab>("week");
+
   // The pipeline publishes an authoritative per-week rank; trust it over a
   // local re-sort so the list matches the scoring run's own ordering.
   const top = [...segments]
     .sort((a, b) => a.properties.rank - b.properties.rank)
     .slice(0, 20);
 
-  // Corridors near a live detection, nearest first. Pinned above the ranked
-  // list: a status about right now, not a change to the weekly ranking.
+  // Corridors near a live detection, nearest first. A status about right
+  // now, not a change to the weekly ranking.
   const flagged = segments
     .filter((f) => fireDistances.has(f.properties.id))
     .sort(
@@ -249,8 +308,6 @@ export default function SidePanel({
         (fireDistances.get(a.properties.id) ?? Infinity) -
         (fireDistances.get(b.properties.id) ?? Infinity)
     );
-  const flaggedShown = flagged.slice(0, MAX_FLAGGED_ROWS);
-  const flaggedOverflow = flagged.length - flaggedShown.length;
 
   const selectedFireDistance =
     selection?.kind === "segment"
@@ -275,108 +332,113 @@ export default function SidePanel({
         </div>
       ) : (
         <>
-          {!loading && flaggedShown.length > 0 && (
-            <div className="shrink-0 border-b-2 border-red-200 bg-red-50/50">
-              <div className="px-4 pb-1.5 pt-3">
-                <h2 className="text-base font-semibold text-red-900">
-                  🔥 Near active fires right now
-                </h2>
-                <p className="mt-0.5 text-[13px] leading-snug text-red-800/80">
-                  Corridors within 1.5 km of a satellite fire detection from
-                  the last 24 hours.
+          <div className="border-b border-slate-200 px-4 pb-3 pt-3">
+            <h2 className="text-base font-semibold text-slate-900">
+              Power line corridors
+            </h2>
+            <div
+              role="tablist"
+              aria-label="Corridor lists"
+              className="mt-2 flex gap-1 rounded-lg bg-slate-100 p-1"
+            >
+              <button
+                role="tab"
+                aria-selected={tab === "week"}
+                onClick={() => setTab("week")}
+                className={`flex-1 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors ${
+                  tab === "week"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                This week
+              </button>
+              <button
+                role="tab"
+                aria-selected={tab === "fires"}
+                disabled={!loading && flagged.length === 0}
+                onClick={() => setTab("fires")}
+                className={`flex-1 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors ${
+                  tab === "fires"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                } disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-slate-500`}
+              >
+                <span aria-hidden="true" className="mr-1 text-[11px]">
+                  🔥
+                </span>
+                Active fires &middot; {loading ? "…" : flagged.length}
+              </button>
+            </div>
+          </div>
+
+          {tab === "week" ? (
+            <>
+              <div className="border-b border-slate-200 px-4 py-2">
+                <p className="text-[13px] leading-snug text-slate-500">
+                  {loading
+                    ? "Ranking this week's corridors…"
+                    : `The ${top.length} highest-risk corridors this week. Click one to inspect it on the map.`}
                 </p>
               </div>
-              <ol className="max-h-64 overflow-y-auto">
-                {flaggedShown.map((f) => {
-                  const distance = fireDistances.get(f.properties.id);
-                  return (
-                    <li key={String(f.properties.id)}>
-                      <button
-                        onClick={() => onSelectSegment(f)}
-                        className="flex w-full items-center gap-3 border-t border-red-100 px-4 py-3 text-left transition-colors hover:bg-red-100/60"
-                      >
-                        <span className="w-7 shrink-0 text-right">
-                          <FlameMark />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[15px] font-medium text-slate-800">
-                            {segmentHeadline(f)}
-                          </span>
-                          <span className="block truncate text-xs text-slate-500">
-                            {segmentSubtitle(f)}
-                          </span>
-                          {distance != null && (
-                            <span className="block text-xs font-medium text-red-800">
-                              fire detected {formatFireDistance(distance)} away
-                            </span>
-                          )}
-                        </span>
-                        <RiskBadge
-                          value={f.properties.risk}
-                          scale={corridorScale}
-                          mode={mode}
-                        />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-              {flaggedOverflow > 0 && (
-                <p className="border-t border-red-100 px-4 py-1.5 text-xs text-red-800/80">
-                  +{flaggedOverflow} more corridor{flaggedOverflow === 1 ? "" : "s"} near
-                  active fires
-                </p>
-              )}
-            </div>
-          )}
-          <div className="border-b border-slate-200 p-4 pb-3">
-            <h2 className="text-base font-semibold text-slate-900">
-              This week&apos;s highest-risk power line corridors
-            </h2>
-            <p className="mt-0.5 text-sm text-slate-500">
-              {loading
-                ? "Ranking this week's corridors…"
-                : `The ${top.length} highest-risk corridors this week. Click one to inspect it on the map.`}
-            </p>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {loading ? (
-              <p className="p-4 text-sm text-slate-500">Loading corridors…</p>
-            ) : top.length === 0 ? (
-              <p className="p-4 text-sm text-slate-500">
-                No corridor scores for this week.
-              </p>
-            ) : (
-              <ol>
-                {top.map((f) => (
-                  <li key={String(f.properties.id)}>
-                    <button
-                      onClick={() => onSelectSegment(f)}
-                      className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-orange-50/60"
-                    >
-                      <span className="w-7 shrink-0 text-right font-mono text-xs text-slate-400">
-                        {f.properties.rank}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5 truncate text-[15px] font-medium text-slate-800">
-                          <span className="truncate">{segmentHeadline(f)}</span>
-                          {fireDistances.has(f.properties.id) && <FlameMark />}
-                        </span>
-                        <span className="block truncate text-xs text-slate-500">
-                          {segmentSubtitle(f)}
-                        </span>
-                      </span>
-                      <RiskBadge
-                        value={f.properties.risk}
-                        scale={corridorScale}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {loading ? (
+                  <p className="p-4 text-sm text-slate-500">Loading corridors…</p>
+                ) : top.length === 0 ? (
+                  <p className="p-4 text-sm text-slate-500">
+                    No corridor scores for this week.
+                  </p>
+                ) : (
+                  <ol>
+                    {top.map((f) => (
+                      <SegmentRow
+                        key={String(f.properties.id)}
+                        feature={f}
+                        lead={f.properties.rank}
+                        showFlameInline={fireDistances.has(f.properties.id)}
                         mode={mode}
+                        corridorScale={corridorScale}
+                        onSelect={onSelectSegment}
                       />
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="border-b border-slate-200 px-4 py-2">
+                <p className="text-[13px] leading-snug text-slate-500">
+                  Corridors within 1.5 km of a satellite fire detection from
+                  the last 24 hours. Weekly forecasts are computed before
+                  these detections.
+                </p>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {loading ? (
+                  <p className="p-4 text-sm text-slate-500">Loading corridors…</p>
+                ) : flagged.length === 0 ? (
+                  <p className="p-4 text-sm text-slate-500">
+                    No corridors near active fires right now.
+                  </p>
+                ) : (
+                  <ol>
+                    {flagged.map((f) => (
+                      <SegmentRow
+                        key={String(f.properties.id)}
+                        feature={f}
+                        lead={<FlameMark />}
+                        fireDistanceM={fireDistances.get(f.properties.id)}
+                        mode={mode}
+                        corridorScale={corridorScale}
+                        onSelect={onSelectSegment}
+                      />
+                    ))}
+                  </ol>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

@@ -141,7 +141,8 @@ export default function AboutPage() {
             clear about what a detection is: a satellite seeing heat. The
             position is approximate to about 375 m, small or brief fires can be
             missed entirely, and false positives happen (industrial heat, gas
-            flares).
+            flares). Corridors within 1.5 km of a detection are listed under
+            the Active fires tab in the app.
           </Source>
           <Source name="OpenStreetMap" href="https://www.openstreetmap.org/">
             The power grid itself: transmission and distribution lines with
@@ -196,6 +197,18 @@ export default function AboutPage() {
             the line causes fires; no public European dataset attributes
             wildfire occurrences to grid equipment, so that distinction is beyond what
             open data can support.
+          </p>
+        </div>
+
+        <SectionHeading>When a fire is already burning</SectionHeading>
+        <div className="mt-3 space-y-3">
+          <p>
+            Live NASA FIRMS detections never change the forecast scores.
+            Instead, cells containing a detection are shown as active fires on
+            the map, and corridors within 1.5 km of a detection appear under
+            the Active fires tab with their distance to the nearest one. The
+            weekly forecast shown for those places was computed before the
+            detection, so treat it as context, not a reaction to the fire.
           </p>
         </div>
 
