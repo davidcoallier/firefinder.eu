@@ -35,6 +35,14 @@ import {
 } from "@/lib/colors";
 import type { WeekScale } from "@/lib/tiers";
 
+/**
+ * Status treatment for cells with a live detection inside them: a saturated
+ * deep-red fill with a darker outline, clearly apart from the risk ramp so a
+ * burning hexagon reads as "on fire", not just "very risky".
+ */
+const ACTIVE_FIRE_FILL: [number, number, number, number] = [190, 24, 30, 235];
+const ACTIVE_FIRE_OUTLINE: [number, number, number, number] = [110, 8, 14, 255];
+
 /** Consecutive satellite tile failures before we report the source as broken. */
 const SATELLITE_ERROR_LIMIT = 3;
 
@@ -57,6 +65,13 @@ type MapViewProps = {
   showSegments: boolean;
   showFires: boolean;
   showLiveFires: boolean;
+  /**
+   * H3 indexes with a live detection in the last 24h. Independent of the
+   * live-fires icon toggle: the status treatment is about the truthfulness of
+   * the tier display, so it stays on while detections are loaded. An empty
+   * set (no data) leaves the map unchanged.
+   */
+  activeCells: Set<string>;
   onSelectLiveFire: (feature: LiveFireFeature | null) => void;
   gridContext: GeoJSON.FeatureCollection | null;
   cellOpacity: number;
@@ -106,7 +121,8 @@ const TOOLTIP_STYLE: Partial<CSSStyleDeclaration> = {
 function buildTooltip(
   info: PickingInfo,
   cellScale: WeekScale,
-  corridorScale: WeekScale
+  corridorScale: WeekScale,
+  activeCells: Set<string>
 ): { text: string; style: Partial<CSSStyleDeclaration> } | null {
   const obj = info.object as unknown;
   if (!obj) return null;
@@ -127,6 +143,12 @@ function buildTooltip(
   }
   const cell = obj as Cell;
   if (typeof cell.p === "number") {
+    if (activeCells.has(cell.h3)) {
+      return {
+        text: "Active fire detected here in the last 24h",
+        style: TOOLTIP_STYLE,
+      };
+    }
     return {
       text: `${formatProb(cell.p)} weekly wildfire probability (${cellScale.tier(cell.p).label} this week)`,
       style: TOOLTIP_STYLE,
@@ -147,6 +169,7 @@ export default function MapView({
   showSegments,
   showFires,
   showLiveFires,
+  activeCells,
   onSelectLiveFire,
   gridContext,
   cellOpacity,
@@ -168,12 +191,12 @@ export default function MapView({
   const flownRegionIdRef = useRef<string | null>(null);
   const satelliteErrorsRef = useRef(0);
   // The overlay's tooltip callback is bound once at init; it reads the
-  // current week's scales through this ref.
-  const scalesRef = useRef({ cell: cellScale, corridor: corridorScale });
+  // current week's scales and the active-fire set through this ref.
+  const scalesRef = useRef({ cell: cellScale, corridor: corridorScale, activeCells });
 
   useEffect(() => {
-    scalesRef.current = { cell: cellScale, corridor: corridorScale };
-  }, [cellScale, corridorScale]);
+    scalesRef.current = { cell: cellScale, corridor: corridorScale, activeCells };
+  }, [cellScale, corridorScale, activeCells]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -223,7 +246,12 @@ export default function MapView({
       interleaved: false,
       layers: [],
       getTooltip: (info: PickingInfo) =>
-        buildTooltip(info, scalesRef.current.cell, scalesRef.current.corridor),
+        buildTooltip(
+          info,
+          scalesRef.current.cell,
+          scalesRef.current.corridor,
+          scalesRef.current.activeCells
+        ),
       onClick: (info: PickingInfo) => {
         // Click on empty space clears the selection(s).
         if (!info.layer) {
@@ -337,15 +365,25 @@ export default function MapView({
       layers.push(
         new H3HexagonLayer<Cell>({
           id: "cells",
-          data: cells.filter((c) => c.p >= cellCutoff),
+          // Cells with an active fire stay visible even below the threshold:
+          // hiding a burning hexagon would misstate the situation.
+          data: cells.filter((c) => c.p >= cellCutoff || activeCells.has(c.h3)),
           getHexagon: (d) => d.h3,
           filled: true,
           extruded: false,
-          stroked: false,
-          getFillColor: (d) =>
-            d.h3 === selectedCellId
-              ? ACCENT_SELECT
-              : riskColor(cellScale.normalize(d.p), cellOpacity, basemap),
+          // Stroked only in effect for active-fire cells: everything else
+          // gets a fully transparent zero-width outline.
+          stroked: true,
+          getFillColor: (d) => {
+            if (d.h3 === selectedCellId) return ACCENT_SELECT;
+            if (activeCells.has(d.h3)) return ACTIVE_FIRE_FILL;
+            return riskColor(cellScale.normalize(d.p), cellOpacity, basemap);
+          },
+          getLineColor: (d) =>
+            activeCells.has(d.h3) ? ACTIVE_FIRE_OUTLINE : [0, 0, 0, 0],
+          getLineWidth: (d) => (activeCells.has(d.h3) ? 2 : 0),
+          lineWidthUnits: "pixels",
+          lineWidthMinPixels: 0,
           pickable: true,
           onClick: (info) => {
             const cell = info.object as Cell | undefined;
@@ -353,7 +391,9 @@ export default function MapView({
             return true;
           },
           updateTriggers: {
-            getFillColor: [cellOpacity, selectedCellId, basemap, cellScale],
+            getFillColor: [cellOpacity, selectedCellId, basemap, cellScale, activeCells],
+            getLineColor: [activeCells],
+            getLineWidth: [activeCells],
           },
         })
       );
@@ -417,7 +457,7 @@ export default function MapView({
     }
 
     overlay.setProps({ layers });
-  }, [cells, segments, fires, liveFires, gridContext, showCells, showSegments, showFires, showLiveFires, cellOpacity, cellCutoff, cellScale, corridorScale, selection, basemap]);
+  }, [cells, segments, fires, liveFires, gridContext, showCells, showSegments, showFires, showLiveFires, activeCells, cellOpacity, cellCutoff, cellScale, corridorScale, selection, basemap]);
 
   // Fly to a focus target (e.g. a segment picked from the list).
   useEffect(() => {

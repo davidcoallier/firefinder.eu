@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { activeCellSet, corridorFireProximity } from "@/lib/activeFires";
 import { fetchCellDrivers, fetchCells, fetchFires, fetchSegments, fetchWeeks } from "@/lib/api";
 import {
   getBasemapSnapshot,
@@ -245,6 +246,15 @@ export default function App() {
     return makeWeekScale(cells.map((c) => c.p));
   }, [cells, cellsComplete, corridorScale]);
 
+  // Active fire status, derived from live detections. Deliberately does NOT
+  // feed back into forecast scores or scales: it supersedes the tier
+  // presentation where reality has overtaken the forecast.
+  const activeCells = useMemo(() => activeCellSet(liveFires), [liveFires]);
+  const fireDistances = useMemo(
+    () => corridorFireProximity(liveFires, segments),
+    [liveFires, segments]
+  );
+
   // Raw probability cutoff equivalent to the normalized threshold. While
   // pages are still streaming, everything loaded so far is top-of-week, so
   // show it all rather than filter against a provisional denominator.
@@ -328,6 +338,7 @@ export default function App() {
           showSegments={showSegments}
           showFires={mode === "advanced" && showFires}
           showLiveFires={liveFiresOn}
+          activeCells={activeCells}
           onSelectLiveFire={setLiveFire}
           cellOpacity={cellOpacity}
           cellCutoff={cellCutoff}
@@ -387,6 +398,8 @@ export default function App() {
                 loading={weekLoading}
                 corridorScale={corridorScale}
                 cellScale={cellScale}
+                fireDistances={fireDistances}
+                activeCells={activeCells}
                 selection={selection}
                 onSelectSegment={handleSelectSegmentFromList}
                 onClearSelection={() => setSelection(null)}
