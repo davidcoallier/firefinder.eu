@@ -364,8 +364,8 @@ export default function App() {
           <aside className="absolute bottom-0 left-0 top-0 z-10 flex w-[22.5rem] flex-col border-r border-slate-200 bg-white/92 backdrop-blur-md">
             {mode === "simple" && (
               <p className="border-b border-slate-200 bg-orange-50/80 px-4 py-2.5 text-[13px] leading-snug text-slate-700">
-                Each line is a power corridor. Redder = higher wildfire risk
-                this week.
+                Every line here is a power corridor. The redder a line looks,
+                the higher its wildfire risk this week.
               </p>
             )}
             <div className="border-b border-slate-200 px-4 pb-2 pt-3">
